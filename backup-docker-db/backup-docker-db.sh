@@ -21,10 +21,11 @@
 #                       change to this script
 #   lib/db-dump-lib.sh  vendored dump helpers (container autodetection,
 #                       credential resolution, retention) — see its header
-#   lib/runlib/         the shared run skeleton (log file, error account, lock,
+#   ../lib/runlib/      the shared run skeleton (log file, error account, lock,
 #                       configuration loader, summary, notification, marker),
-#                       a git submodule shared with the other backup scripts
-# all relative to this script's directory. Needs docker access (run as root).
+#                       the git submodule shared with the other backup scripts
+# all relative to this script's directory, except runlib, which lives once at
+# the root of the collection. Needs docker access (run as root).
 # See README.md.
 
 set -uo pipefail
@@ -34,6 +35,9 @@ set -uo pipefail
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# runlib is bound once, at the root of the collection. That makes this directory
+# not standalone-deployable: it needs its sibling lib/.
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Per-stack records, index-parallel with runlib's INSTANCE_NAMES/INSTANCE_CONFS.
 # They are appended by validate_stack() exactly when it accepts a stack, so the
@@ -99,16 +103,16 @@ done
 # stay apart.
 # ---------------------------------------------------------------------------
 
-RUNLIB="$SCRIPT_DIR/lib/runlib/runlib.sh"
+RUNLIB="$ROOT_DIR/lib/runlib/runlib.sh"
 DB_DUMP_LIB="$SCRIPT_DIR/lib/db-dump-lib.sh"
 for lib_file in "$RUNLIB" "$DB_DUMP_LIB"; do
   [[ -r "$lib_file" ]] || {
     echo "FATAL: library not readable: $lib_file" >&2
-    echo "       (lib/runlib is a git submodule — run 'git submodule update --init')" >&2
+    echo "       (../lib/runlib is a git submodule — run 'git submodule update --init')" >&2
     exit 1
   }
 done
-# shellcheck source=lib/runlib/runlib.sh
+# shellcheck source=../lib/runlib/runlib.sh
 source "$RUNLIB"
 
 # db-dump-lib.sh derives STACK_DIR/STACK_NAME/DUMP_DIR from the sourcing file at

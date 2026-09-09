@@ -14,10 +14,11 @@
 #                       change to this script
 #   lib/tar-lib.sh      archive helpers (compressor, tar call, verification,
 #                       retention) — the domain library
-#   lib/runlib/         the shared run skeleton (log file, error account, lock,
+#   ../lib/runlib/      the shared run skeleton (log file, error account, lock,
 #                       configuration loader, summary, notification, marker),
-#                       a git submodule shared with the other backup scripts
-# all relative to this script's directory. See README.md.
+#                       the git submodule shared with the other backup scripts
+# all relative to this script's directory, except runlib, which lives once at
+# the root of the collection. See README.md.
 #
 # The run publishes a completion marker (BACKUP_BASE/.complete), written
 # atomically and ONLY when every configured path was archived without a single
@@ -32,6 +33,9 @@ set -uo pipefail
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# runlib is bound once, at the root of the collection. That makes this directory
+# not standalone-deployable: it needs its sibling lib/.
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Per-path records, index-parallel with runlib's INSTANCE_NAMES/INSTANCE_CONFS.
 # They are appended by validate_path() exactly when it accepts a path, so the
@@ -122,16 +126,16 @@ fi
 # stay apart.
 # ---------------------------------------------------------------------------
 
-RUNLIB="$SCRIPT_DIR/lib/runlib/runlib.sh"
+RUNLIB="$ROOT_DIR/lib/runlib/runlib.sh"
 TAR_LIB="$SCRIPT_DIR/lib/tar-lib.sh"
 for lib_file in "$RUNLIB" "$TAR_LIB"; do
   [[ -r "$lib_file" ]] || {
     echo "FATAL: library not readable: $lib_file" >&2
-    echo "       (lib/runlib is a git submodule — run 'git submodule update --init')" >&2
+    echo "       (../lib/runlib is a git submodule — run 'git submodule update --init')" >&2
     exit 1
   }
 done
-# shellcheck source=lib/runlib/runlib.sh
+# shellcheck source=../lib/runlib/runlib.sh
 source "$RUNLIB"
 # shellcheck source=lib/tar-lib.sh
 source "$TAR_LIB"

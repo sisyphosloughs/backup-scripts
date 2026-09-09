@@ -13,10 +13,12 @@
 #                          TARGET_REPOS)
 #   repos.conf             one restic repository URL per line
 #   repo.password          restic password (chmod 600, owned by root)
-#   lib/runlib/            the shared run skeleton (log file, error account,
+#   ../lib/runlib/         the shared run skeleton (log file, error account,
 #                          lock, configuration loader, summary, notification),
-#                          a git submodule shared with the other backup scripts
-# all in the same directory as this script. Must run with root privileges.
+#                          the git submodule shared with the other backup
+#                          scripts
+# all in the same directory as this script, except runlib, which lives once at
+# the root of the collection. Must run with root privileges.
 # See README.md.
 
 set -uo pipefail
@@ -26,6 +28,9 @@ set -uo pipefail
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# runlib is bound once, at the root of the collection. That makes this directory
+# not standalone-deployable: it needs its sibling lib/.
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Successfully backed-up targets
 SUCCESS_TARGETS=()
@@ -104,17 +109,18 @@ done
 #
 # runlib brings the log file, the error account (ERRORS -> exit code), the lock,
 # the instances/*.conf loader, the summary and the Telegram notification. It is
-# a git submodule, shared with the other backup scripts of this family, so a log
-# line means the same thing no matter which one produced it.
+# a git submodule bound once at the root of the collection and shared with the
+# other backup scripts of this family, so a log line means the same thing no
+# matter which one produced it.
 # ---------------------------------------------------------------------------
 
-RUNLIB="$SCRIPT_DIR/lib/runlib/runlib.sh"
+RUNLIB="$ROOT_DIR/lib/runlib/runlib.sh"
 [[ -r "$RUNLIB" ]] || {
   echo "FATAL: library not readable: $RUNLIB" >&2
-  echo "       (lib/runlib is a git submodule — run 'git submodule update --init')" >&2
+  echo "       (../lib/runlib is a git submodule — run 'git submodule update --init')" >&2
   exit 1
 }
-# shellcheck source=lib/runlib/runlib.sh
+# shellcheck source=../lib/runlib/runlib.sh
 source "$RUNLIB"
 
 # ---------------------------------------------------------------------------

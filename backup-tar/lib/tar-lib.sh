@@ -19,7 +19,7 @@
 # compressor_spec returns its result on stdout via a command substitution, so
 # diagnostics must not pollute that channel. This bare log() is exactly what
 # runlib deliberately does NOT define, so the two channels stay apart — see the
-# header of lib/runlib/log.sh.
+# header of runlib's log.sh.
 
 log() {
   local level="$1"; shift
