@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# One .gitignore for the whole collection. Merged from the four repositories
+# this monorepo replaces; every module follows the same rules.
+# ---------------------------------------------------------------------------
+
+# Editor / OS noise
+.DS_Store
+*.swp
+
+# Host-specific configuration and secrets — never commit.
+# Everything ending in .conf is live configuration: global.conf,
+# instances/<name>.conf, repos.conf and telegram.conf.
+*.conf
+# The templates are not *.conf and stay versioned; listed for clarity.
+!*.conf.example
+repo.password
+
+# Runtime logs (each script creates its own logs/ via log_init)
+logs/
+
+# Local tooling
+.claude/settings.local.json
+mutagen.yml
+mutagen.yml.lock
+test/

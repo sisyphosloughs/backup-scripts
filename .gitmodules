@@ -1,0 +1,12 @@
+[submodule "lib/runlib"]
+	path = lib/runlib
+	url = git@github.com:sisyphosloughs/runlib.git
+[submodule "backup-docker-db/lib/runlib"]
+	path = backup-docker-db/lib/runlib
+	url = git@github.com:sisyphosloughs/runlib.git
+[submodule "backup-tar/lib/runlib"]
+	path = backup-tar/lib/runlib
+	url = git@github.com:sisyphosloughs/runlib.git
+[submodule "backup-restic-push/lib/runlib"]
+	path = backup-restic-push/lib/runlib
+	url = git@github.com:sisyphosloughs/runlib.git
