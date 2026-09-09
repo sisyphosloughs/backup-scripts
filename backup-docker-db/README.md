@@ -1,6 +1,6 @@
 # backup-docker-db
 
-Creates the database dumps of Docker stacks **locally on the host they run on**
+Creates database dumps of Docker stacks **locally on the host they run on**
 and publishes them in a staging directory that a backup host pulls read-only.
 
 This is **script 1 of a two-part pull-backup architecture**:
@@ -32,15 +32,21 @@ be weakened anywhere — no "let's just push it directly, it's simpler".
 │   ├── instances.conf.example # template for a stack
 │   └── <name>.conf            # e.g. nextcloud.conf, immich.conf
 ├── lib/
-│   ├── db-dump-lib.sh         # dump helpers: container autodetection, credentials, retention
-│   └── runlib/                # shared run skeleton — git submodule, see below
+│   └── db-dump-lib.sh         # dump helpers: container autodetection, credentials, retention
 ├── examples/
 │   └── db-dump.custom.sh      # template for a stack with ENGINE="custom"
 └── logs/                      # one log file per run (auto-rotated), created by the script
 ```
 
+plus, one level up, the shared library of the collection:
+
+```
+../lib/runlib/                 # shared run skeleton — git submodule, see below
+```
+
 The script determines its own location at runtime; all paths derive from it, so
-the location is freely choosable (e.g. `/opt/backup-docker-db`).
+the location is freely choosable (e.g. `/opt/backup-docker-db`) — as long as
+`lib/runlib/` sits next to it in the parent directory.
 
 
 ## The shared library
@@ -49,9 +55,10 @@ The per-run log file, the error account that decides the exit code, the flock,
 the `instances/*.conf` loader, the summary and the Telegram notification are not
 implemented here. They live in
 [runlib](https://github.com/sisyphosloughs/runlib) and are pulled in as a git
-submodule at `lib/runlib/`, so every script of the family runs the same code and
-a log line means the same thing no matter which one produced it. It replaced the
-copy of `lib/common-lib.sh` that used to sit here.
+submodule at `../lib/runlib/` — bound once for the whole collection, not once
+per script — so every script of the family runs the same code and a log line
+means the same thing no matter which one produced it. It replaced the copy of
+`lib/common-lib.sh` that used to sit here.
 
 What stays in this script is what is actually about dumping databases: the CLI,
 the engine dispatch, `STOP_SERVICES`, the staging directory and its permissions,
@@ -59,7 +66,8 @@ and `lib/db-dump-lib.sh`. The wording of the log and the notification stays this
 script's own through the variables runlib reads (`RUN_WHAT`, `INSTANCE_LABEL`, …).
 
 A fresh clone needs `git clone --recurse-submodules`; an existing one
-`git submodule update --init`. To move to a newer runlib:
+`git submodule update --init`. To move to a newer runlib — from the root of the
+collection, one pointer for all three scripts:
 
 ```bash
 git submodule update --remote lib/runlib
@@ -329,7 +337,7 @@ What this split buys, and why it is not "simpler to push directly":
   consistent; `STOP_SERVICES` remains for the narrow set of cases where the dump
   method itself has no online consistency (see above).
 
-`lib/runlib/` — the per-run log file, the error account, the lock, the
+`../lib/runlib/` — the per-run log file, the error account, the lock, the
 `instances/*.conf` loader, the summary and the Telegram notification — is a git
 submodule shared by all three, so a log line means the same thing no matter
 which script produced it.

@@ -35,13 +35,18 @@ live in `global.conf`.
 │   └── <name>.conf              # e.g. containers.conf, audiobooks.conf
 ├── repos.conf                   # host-specific repository list, optionally named (from repos.conf.example)
 ├── repo.password                # restic password (chmod 600, owned by root)
-├── lib/
-│   └── runlib/                  # shared run skeleton — git submodule, see below
 └── logs/                        # one log file per run (auto-rotated), created by the script
 ```
 
+plus, one level up, the shared library of the collection:
+
+```
+../lib/runlib/                   # shared run skeleton — git submodule, see below
+```
+
 The script determines its own location at runtime; all paths are derived from
-`SCRIPT_DIR`. The location is freely choosable.
+`SCRIPT_DIR`. The location is freely choosable — as long as `lib/runlib/` sits
+next to it in the parent directory.
 
 ## Configuration model
 
@@ -246,15 +251,17 @@ The per-run log file, the error account that decides the exit code, the lock,
 the `instances/*.conf` loader, the summary and the Telegram notification are not
 implemented here. They live in
 [runlib](https://github.com/sisyphosloughs/runlib) and are pulled in as a git
-submodule at `lib/runlib/`, so every script of this family runs the same code
-and a log line means the same thing no matter which one produced it.
+submodule at `../lib/runlib/` — bound once for the whole collection, not once
+per script — so every script of this family runs the same code and a log line
+means the same thing no matter which one produced it.
 
 What stays in this script is what is about restic: the repository list, the
 per-repo grouping of instances, reachability probing, `restic backup`, the
 progress filter, forget/prune and the monthly check.
 
 A fresh clone needs `git clone --recurse-submodules`; an existing one
-`git submodule update --init`. To move to a newer runlib:
+`git submodule update --init`. To move to a newer runlib — from the root of the
+collection, one pointer for all three scripts:
 
 ```bash
 git submodule update --remote lib/runlib

@@ -4,19 +4,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this directory is
 
-**Not one repository — four independent ones**, plus two files that belong to no repo:
+**One repository, `sisyphosloughs/backup-scripts`**, holding three independent
+scripts, the library they share, and the wrapper that chains them:
 
 | Path | Role |
 |---|---|
-| `runlib/` | shared Bash library, published as `sisyphosloughs/runlib` |
+| `lib/runlib/` | shared Bash library, published as `sisyphosloughs/runlib` |
 | `backup-docker-db/` | dumps Docker stack databases into a staging directory |
 | `backup-tar/` | one compressed tar archive per configured path |
 | `backup-restic-push/` | pushes local directories into restic repositories |
 | `backup-wrapper.sh` | the cron entry point; calls the three scripts in order |
-| `telegram.conf` | bot token + chat id, `0600`, referenced by `TELEGRAM_CONF` |
+| `telegram.conf` | bot token + chat id, `0600`, gitignored, read via `TELEGRAM_CONF` |
 
-`runlib/` is also vendored into each of the three script repos as the git
-submodule `lib/runlib/`. The clone at the top level is where it is *developed*.
+The three modules were separate repositories until the monorepo import; wording
+that still says “this repo” in a module README means the module.
+
+runlib is bound **once**, as the submodule `lib/runlib/`. All three scripts load
+it from there (`$ROOT_DIR/lib/runlib/runlib.sh`, with
+`ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"`). It used to be a separate submodule
+per module as well; that allowed four diverging pointers, which would have
+broken the one property the shared library exists for.
+
+**A module directory is therefore not standalone-deployable.** It needs its
+sibling `lib/`. Anything that copies a module — a throwaway test copy, a rollout
+to another host — has to take `lib/` along.
 
 ## The development environment is unusual — read this first
 
@@ -36,11 +47,15 @@ locally. Running them on the host as `shanty` fails too: `logs/` in
 `backup-docker-db` and `backup-tar` is owned by `root` (cron runs as root), and
 `prepare_*_dir` chgrps to `nape`. The working recipe is a throwaway copy:
 
+The copy has to keep the collection's shape — module directory *and* `lib/`
+next to each other — because the script resolves runlib as `../lib/runlib`:
+
 ```bash
-ssh milos 'T=$(mktemp -d); cp -a /home/shanty/backup-scripts/backup-tar "$T/x"
-  rm -rf "$T/x/logs"; mkdir -p "$T/x/logs"
-  sed -i "s/^BACKUP_GROUP=.*/BACKUP_GROUP=\"shanty\"/" "$T/x/global.conf"
-  "$T/x/backup-tar.sh" --list; rm -rf "$T"'
+ssh milos 'T=$(mktemp -d); mkdir -p "$T/x"
+  cp -a /home/shanty/backup-scripts/backup-tar /home/shanty/backup-scripts/lib "$T/x/"
+  rm -rf "$T/x/backup-tar/logs"; mkdir -p "$T/x/backup-tar/logs"
+  sed -i "s/^BACKUP_GROUP=.*/BACKUP_GROUP=\"shanty\"/" "$T/x/backup-tar/global.conf"
+  "$T/x/backup-tar/backup-tar.sh" --list; rm -rf "$T"'
 ```
 
 `backup-restic-push`'s `logs/` is `shanty`-owned, so it runs in place.
@@ -51,11 +66,14 @@ There is no build and no test framework. The checks are:
 
 ```bash
 bash -n <script>
-cd <repo> && shellcheck -x <script> lib/*.sh    # MUST be run from the repo dir
+cd backup-docker-db   && shellcheck -x backup-docker-db.sh lib/db-dump-lib.sh
+cd backup-tar         && shellcheck -x backup-tar.sh lib/tar-lib.sh
+cd backup-restic-push && shellcheck -x backup-restic-push.sh   # no lib/ of its own
 ```
 
 `shellcheck -x` resolves `source` paths relative to the **current directory** —
-running it from the parent produces false findings. `backup-restic-push.sh` has
+running it from the parent produces false findings, and the `source=` directives
+for runlib now point one level up (`../lib/runlib/runlib.sh`). `backup-restic-push.sh` has
 2 pre-existing SC2094 infos; everything else is clean, and should stay that way.
 
 Dry checks that touch no data and write no completion marker:
@@ -148,17 +166,20 @@ files carrying dead keys until they were fixed separately.
 The submodule pointer cannot resolve a commit that is not on GitHub, so:
 
 ```bash
-cd runlib && git commit … && git push origin main
-cd ../<repo> && git submodule update --remote lib/runlib
-# then commit lib/runlib together with the code that needs the new version
+cd lib/runlib && git commit … && git push origin main && cd ../..
+git submodule update --remote lib/runlib
+# then commit the moved pointer together with the code that needs the new version
 ```
+
+One pointer moves all three scripts at once — that is the point of binding
+runlib only here.
 
 Deploying to a fresh host needs `git clone --recurse-submodules`, an existing
 one `git submodule update --init`.
 
 ## Verification standard used here
 
-The repos are verified by **comparison, not by assertion**: run the old and the
+The scripts are verified by **comparison, not by assertion**: run the old and the
 new version against identical input on the host and diff the logs, expecting
 only the deliberately changed lines. Byte-for-byte comparison of rendered
 messages against the original `printf` statements is the accepted proof that a

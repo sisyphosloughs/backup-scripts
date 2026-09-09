@@ -54,13 +54,19 @@ remaining paths still run, and every failure shows up in the summary.
 │   ├── instances.conf.example     # template for a path
 │   └── <name>.conf            # e.g. nextcloud.conf, photos.conf
 ├── lib/
-│   ├── tar-lib.sh             # archive helpers (compressor, tar call, verification, retention)
-│   └── runlib/                # shared run skeleton — git submodule, see below
+│   └── tar-lib.sh             # archive helpers (compressor, tar call, verification, retention)
 └── logs/                      # one log file per run (auto-rotated), created by the script
 ```
 
+plus, one level up, the shared library of the collection:
+
+```
+../lib/runlib/                 # shared run skeleton — git submodule, see below
+```
+
 The script determines its own location at runtime; all paths derive from it, so
-the location is freely choosable (e.g. `/opt/backup-tar`).
+the location is freely choosable (e.g. `/opt/backup-tar`) — as long as
+`lib/runlib/` sits next to it in the parent directory.
 
 **Requires GNU tar** (for `--exclude-caches`, `--one-file-system` and
 `--use-compress-program`). `COMPRESSION_LEVEL` and `COMPRESSION_THREADS`
@@ -400,17 +406,18 @@ This script is the file half of the same idea as
 deliberately reuses that repository's structure rather than inventing a second
 way of doing the same things:
 
-- **`lib/runlib/` is a git submodule.** The per-run log file, the error account,
-  the lock, the configuration loader, the summary and the Telegram notification
-  live in [runlib](https://github.com/sisyphosloughs/runlib) and are shared by
-  every script of the family, so a log line or a Telegram message means the same
-  thing no matter which one produced it. It replaced the vendored copy of
+- **`../lib/runlib/` is a git submodule.** The per-run log file, the error
+  account, the lock, the configuration loader, the summary and the Telegram
+  notification live in [runlib](https://github.com/sisyphosloughs/runlib) and
+  are shared by every script of the family, so a log line or a Telegram message
+  means the same thing no matter which one produced it. It is bound once for the
+  whole collection, not once per script. It replaced the vendored copy of
   `lib/common-lib.sh` that used to sit here. What stays specific to this script
   is the wording (`RUN_WHAT`, `INSTANCE_LABEL`, …) and everything about tar.
 
   A fresh clone needs `git clone --recurse-submodules`; an existing one
-  `git submodule update --init`. To move to a newer runlib:
-  `git submodule update --remote lib/runlib && git add lib/runlib`.
+  `git submodule update --init`. To move to a newer runlib, from the root of the
+  collection: `git submodule update --remote lib/runlib && git add lib/runlib`.
 - **Same configuration model.** `global.conf` for the run, one `*.conf` per unit
   of work, sourced in isolation with everything reset beforehand. Adding a path
   is adding a file.

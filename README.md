@@ -16,7 +16,7 @@ backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic-push  ->
 | [`backup-docker-db/`](backup-docker-db/) | Dumps the databases of Docker stacks locally (SQLite, MariaDB, MySQL, PostgreSQL) into a staging directory and writes a completion marker. Holds no backup credential. |
 | [`backup-tar/`](backup-tar/) | Writes **one compressed tar archive per configured path**, with per-path retention, checksum and verification. |
 | [`backup-restic-push/`](backup-restic-push/) | Pushes local directories — including the output of the two above — into one or more restic repositories. Any restic backend; rclone only for `rclone:` targets. |
-| [`lib/runlib/`](lib/runlib/) | The shared run skeleton: log file, error account, lock, `instances/*.conf` loader, summary, Telegram, completion marker, command logging. Git submodule, see below. |
+| [`lib/runlib/`](lib/runlib/) | The shared run skeleton: log file, error account, lock, `instances/*.conf` loader, summary, Telegram, completion marker, command logging. Git submodule, bound once for all modules, see below. |
 
 `backup-wrapper.sh` is the cron entry point: it runs the three scripts in the
 order above, once per night.
@@ -34,6 +34,11 @@ of `runlib`.
 script of the family runs the same skeleton and a log line means the same thing
 no matter which one produced it. What differs per script is its wording, set
 through the knobs runlib reads (`RUN_WHAT`, `INSTANCE_LABEL`, …).
+
+It is bound **here and nowhere else**: each module resolves it as
+`../lib/runlib`, so one pointer moves all three scripts and they cannot drift
+apart. The flip side is that a module directory does not run on its own — it
+needs `lib/` beside it, both when testing and when rolling out.
 
 ```bash
 git clone --recurse-submodules git@github.com:sisyphosloughs/backup-scripts.git
