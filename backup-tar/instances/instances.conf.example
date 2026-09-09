@@ -1,0 +1,141 @@
+# paths/<name>.conf — one file per path that is archived
+#
+# Copy this template to paths/<name>.conf (e.g. paths/nextcloud.conf) and
+# adjust. backup-tar.sh collects every "*.conf" in this directory; this
+# ".example" file is ignored. Adding a path therefore never requires a change
+# to the script.
+#
+# The FILE NAME (without ".conf") is the path's name. It is
+#   - the label in the log and in the Telegram summary,
+#   - the sub-directory under BACKUP_BASE the archives are written to,
+#   - and the prefix of every archive: <name>-<timestamp>.tar.gz.
+#
+# Each file is sourced on its own with all variables below reset to the
+# defaults from global.conf, so values never leak between paths. Leave a
+# variable out to get the global default.
+#
+# Only SOURCE is required. A complete, perfectly ordinary configuration is:
+#
+#   SOURCE="/opt/containers/nextcloud"
+#
+# May contain credentials in PRE_CMD/POST_CMD: chmod 600, owned by root.
+
+# ---------------------------------------------------------------------------
+# What is archived (REQUIRED)
+#
+# One path — a directory or a single file. It is stored RELATIVE to its parent,
+# i.e. "/opt/containers/nextcloud" unpacks as "nextcloud/…" and can be restored
+# anywhere, not just over the original location.
+#
+# For several unrelated paths, use several *.conf files: each gets its own
+# archive, its own retention and its own line in the summary, and one of them
+# failing does not cost the others.
+# ---------------------------------------------------------------------------
+SOURCE="/opt/containers/nextcloud"
+
+# Target directory for THIS path. Default: "$BACKUP_BASE/<name>" from
+# global.conf. Set it to send one path somewhere else — a second disk, an
+# already-mounted NFS/CIFS share, a bigger volume:
+# DEST_DIR="/mnt/backup-hdd/nextcloud"
+#
+# It must not lie inside SOURCE (the archives would archive themselves).
+
+# Skip this path without deleting its configuration (default true).
+# ENABLED=false
+
+# ---------------------------------------------------------------------------
+# Retention for this path (defaults: ARCHIVE_RETENTION_DAYS / KEEP_MIN)
+# ---------------------------------------------------------------------------
+# RETENTION_DAYS=30
+# KEEP_MIN=2
+
+# ---------------------------------------------------------------------------
+# Compression for this path (default: COMPRESSION from global.conf)
+#
+# gz | zst | xz | bz2 | none. "none" is the right choice for a source that is
+# already compressed — a photo or video library gains nothing from gzip and
+# only costs the CPU time.
+# ---------------------------------------------------------------------------
+# COMPRESSION="zst"
+# COMPRESSION_LEVEL=""
+# COMPRESSION_THREADS=0
+
+# ---------------------------------------------------------------------------
+# Excludes
+#
+# Patterns are matched against the names AS STORED, i.e. against
+# "<basename of SOURCE>/…". Two rules of GNU tar are worth knowing:
+#   - a pattern without a "/" matches at ANY depth, so "node_modules" excludes
+#     every directory of that name anywhere below the source;
+#   - wildcards also match "/", so "*/cache/*" spans several levels.
+#
+# Excluding caches, temp files and re-downloadable data is usually the single
+# biggest lever on both archive size and runtime.
+# ---------------------------------------------------------------------------
+EXCLUDES=(
+  # "*/data/appdata_*/preview"
+  # "*.log"
+  # "node_modules"
+  # "nextcloud/data/nextcloud.log"
+)
+
+# A file with one pattern per line, for lists too long to keep here (the same
+# syntax as tar's --exclude-from).
+# EXCLUDE_FROM="/etc/tar-backup/nextcloud.excludes"
+
+# See global.conf for what these do; here they override it for this path.
+# ONE_FILE_SYSTEM=true
+# SPARSE=true
+# EXCLUDE_CACHES=true
+# EXCLUDE_VCS=false
+
+# Anything else tar should do for this path, e.g. keep ACLs and extended
+# attributes (both need a filesystem and a tar that support them), or store
+# numeric uid/gid instead of names (for restoring onto a host with different
+# accounts):
+# TAR_EXTRA_OPTS=( "--acls" "--xattrs" "--numeric-owner" )
+
+# ---------------------------------------------------------------------------
+# Verification for this path (defaults from global.conf)
+# ---------------------------------------------------------------------------
+# VERIFY_ARCHIVE=true
+# WRITE_CHECKSUM=true
+# MIN_FREE_MB=0
+
+# ---------------------------------------------------------------------------
+# Load for this path (defaults from global.conf)
+# ---------------------------------------------------------------------------
+# NICE_LEVEL=19
+# IONICE_CLASS=3
+
+# ---------------------------------------------------------------------------
+# Hooks (optional, default: nothing runs)
+#
+# PRE_CMD runs before the archive, POST_CMD afterwards. Both are run through
+# "bash -c" with PATH_NAME, SOURCE and DEST_DIR in their environment.
+#
+# This is where the consistency of the archive is decided. tar reads a live
+# directory file by file: whatever changes WHILE it reads ends up in the
+# archive as a mixture of old and new. For static files that is irrelevant; for
+# a database's files it is the difference between a restore and a corrupt
+# database. So stop the writer, or export it properly, in PRE_CMD:
+#
+#   PRE_CMD="docker compose -f /opt/containers/nextcloud/docker-compose.yml stop"
+#   POST_CMD="docker compose -f /opt/containers/nextcloud/docker-compose.yml start"
+#
+# or, without downtime, dump the database into the directory that is about to
+# be archived (see github.com/sisyphosloughs/backup-docker-db, whose dumps this
+# script is happy to pick up as ordinary files).
+#
+# Guarantees you can rely on:
+#   - POST_CMD runs on EVERY exit path, including a failed archive, so a
+#     container stopped by PRE_CMD comes back up;
+#   - a failing PRE_CMD means NO archive is taken — an archive that only
+#     pretends to be consistent is worse than a missing one;
+#   - a failing POST_CMD makes the path count as failed even if its archive is
+#     fine, so a container left stopped never goes unnoticed;
+#   - if PRE_CMD failed, POST_CMD is skipped: the state it was to establish
+#     never existed, and undoing it blindly is guesswork.
+# ---------------------------------------------------------------------------
+# PRE_CMD=""
+# POST_CMD=""

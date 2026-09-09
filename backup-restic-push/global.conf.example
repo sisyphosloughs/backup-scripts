@@ -1,0 +1,67 @@
+# global.conf — host-specific global configuration
+#
+# Copy to "global.conf" and adjust. Sourced by backup-restic-push.sh based on
+# SCRIPT_DIR (SCRIPT_DIR is available here). Holds the switches that apply to
+# the whole run; what is actually backed up is defined per object in
+# instances/<name>.conf (see instances/instances.conf.example).
+
+# Dry run (default OFF). When "true", restic runs the backup with
+# --dry-run --verbose=2: nothing is written and a per-file listing of what
+# *would* be backed up (incl. which files your excludes skip) is written to the
+# log. forget/prune and the monthly repository check are skipped. Useful to
+# verify paths/excludes before a real run.
+DRY_RUN=false
+# DRY_RUN=true
+
+# Progress during a real (non-dry) backup (default 30 seconds). restic's --json
+# "status" stream is throttled to one compact progress line — percent done,
+# bytes, files and ETA — per this many seconds, printed to terminal and log. This
+# makes a long (e.g. initial) run visibly do something without the per-file flood
+# of the dry run. It is a coarse overall estimate (on a large data set, files may
+# change while the backup runs). Set to 0 to disable the progress lines.
+PROGRESS_INTERVAL=30
+
+# Path to the repository list
+REPOS_FILE="$SCRIPT_DIR/repos.conf"
+
+# Absolute paths to the restic / rclone binaries (optional).
+# Leave empty to use whatever is found in PATH (recommended on most hosts).
+# On some hosts the binaries live in a non-standard location that is not in the
+# (cron) PATH; set the absolute path then. A NAS is the common case — see the
+# NAS section of README.md. restic launches rclone as a subprocess and is told
+# which binary to use via this path, so rclone does NOT need to be in PATH.
+# The availability of all required programs is checked and logged at startup.
+RESTIC_BIN=""
+# RESTIC_BIN="/usr/local/bin/restic"
+RCLONE_BIN=""
+# RCLONE_BIN="/usr/local/bin/rclone"
+
+# rclone configuration file (only relevant for "rclone:" targets).
+# Absolute path to the rclone.conf this script should use. Set it whenever the
+# rclone.conf is not at root's default path — see "Configure rclone" in
+# README.md for why that is the usual case. The script then passes the path
+# explicitly to every rclone call and to restic's rclone subprocess.
+# The path must be readable by root and must NOT contain spaces.
+# Leave empty = rclone's default path for the executing user (root).
+RCLONE_CONFIG_FILE=""
+# RCLONE_CONFIG_FILE="/home/USER/.config/rclone/rclone.conf"
+
+# restic password file (chmod 600, owned by root)
+RESTIC_PASSWORD_FILE="$SCRIPT_DIR/repo.password"
+
+# Telegram notification.
+#
+# The credentials live in ONE file for the whole host, so a token rotation is a
+# single edit instead of one per script. Create it with 0600 permissions,
+# outside every repository:
+#
+#   TELEGRAM_BOT_TOKEN="123456:AA..."
+#   TELEGRAM_CHAT_ID="987654"
+#
+# Leave both at "xxx" (or leave TELEGRAM_CONF empty) to disable notifications.
+# Setting TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID directly here still wins, so a
+# single script can override the shared file.
+TELEGRAM_CONF="/etc/runlib/telegram.conf"
+
+# Log retention (days)
+LOG_RETENTION_DAYS=64

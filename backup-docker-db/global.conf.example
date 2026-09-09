@@ -1,0 +1,109 @@
+# global.conf — host-specific global configuration for backup-docker-db.sh
+#
+# Copy to "global.conf" and adjust. Sourced by backup-docker-db.sh based on
+# SCRIPT_DIR (SCRIPT_DIR is available here). Holds the switches that apply to
+# the whole run; WHICH databases are dumped is defined per stack in
+# instances/<name>.conf (see instances/stacks.conf.example).
+#
+# This file may contain the Telegram token: chmod 600, owned by root.
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+
+# Base directory whose sub-directories are the Docker stacks. A stack
+# configuration without its own STACK_DIR is expected in
+# "$STACKS_BASE/<stack name>". Leave empty if every instances/<name>.conf sets its
+# own STACK_DIR.
+STACKS_BASE="/opt/containers"
+
+# Staging directory (REQUIRED): all dumps are collected here, one
+# sub-directory per stack, and the backup host pulls exactly this directory
+# read-only. It must NOT lie inside STACKS_BASE (the dumps would otherwise end
+# up in the data set they were extracted from and be pulled twice).
+STAGING_DIR="/srv/db-staging"
+
+# Directory holding the per-stack configurations (default: instances/ next to the
+# script). Rarely worth changing.
+# INSTANCES_DIR="$SCRIPT_DIR/instances"
+
+# Name of the completion marker inside STAGING_DIR. This is the contract with
+# the pull side — only change it if the pull script is changed with it.
+MARKER_NAME=".complete"
+
+# ---------------------------------------------------------------------------
+# Retention
+# ---------------------------------------------------------------------------
+
+# How many days a dump is kept in the staging directory (default per stack; a
+# instances/<name>.conf may override it with its own RETENTION_DAYS). Keep this
+# SHORT: the actual history lives in the restic repositories on the backup
+# side, staging only has to bridge the gap to the next pull. Do not go below 2
+# — an older dump is the fallback if a run fails.
+DUMP_RETENTION_DAYS=7
+
+# Minimum number of dumps to keep per database, regardless of age. Without it a
+# stack that was down (or whose dump kept failing) would have all its files
+# expire on the same day and be left with nothing. A stack may override this
+# with KEEP_MIN in its own instances/<name>.conf.
+DUMP_KEEP_MIN=2
+
+# Log retention (days). The script rotates its own logs, no logrotate needed.
+LOG_RETENTION_DAYS=64
+
+# ---------------------------------------------------------------------------
+# Access for the pull side
+#
+# The dumps have to be readable for the backup host's read-only pull user, but
+# a SQL dump holds the entire database and must not become world-readable.
+# The intended setup: the pull user is a member of STAGING_GROUP; the staging
+# directories are 0750 and setgid, the dumps 0640 (DUMP_UMASK).
+# ---------------------------------------------------------------------------
+
+# Mode of STAGING_DIR and its per-stack sub-directories.
+STAGING_MODE="0750"
+
+# Group that may read the dumps (the pull user's group). Empty = leave group
+# ownership alone — then make sure the pull user can read the files some other
+# way.
+STAGING_GROUP=""
+# STAGING_GROUP="dbpull"
+
+# umask for the dump files. 0027 -> files 0640, directories 0750.
+DUMP_UMASK="0027"
+
+# ---------------------------------------------------------------------------
+# Docker
+# ---------------------------------------------------------------------------
+
+# Timeout for "docker compose stop" (seconds). Only relevant for stacks that
+# set STOP_SERVICES.
+DOCKER_STOP_TIMEOUT=20
+
+# ---------------------------------------------------------------------------
+# Binaries
+# ---------------------------------------------------------------------------
+
+# Directories prepended to PATH. cron starts with a minimal PATH, and on some
+# hosts (e.g. a NAS) docker or sqlite3 live in a non-standard location such as
+# /volume1/opt/bin. The programs actually needed are checked and logged at
+# startup.
+EXTRA_PATH=""
+# EXTRA_PATH="/usr/local/bin:/volume1/opt/bin"
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+# Telegram notification.
+#
+# The credentials live in ONE file for the whole host, so a token rotation is a
+# single edit instead of one per script. Create it with 0600 permissions,
+# outside every repository:
+#
+#   TELEGRAM_BOT_TOKEN="123456:AA..."
+#   TELEGRAM_CHAT_ID="987654"
+#
+# Leave both at "xxx" (or leave TELEGRAM_CONF empty) to disable notifications.
+# Setting TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID directly here still wins, so a
+# script can be moved over on its own schedule.
+TELEGRAM_CONF="/etc/runlib/telegram.conf"

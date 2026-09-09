@@ -1,0 +1,184 @@
+# global.conf — host-specific global configuration for backup-tar.sh
+#
+# Copy to "global.conf" and adjust. Sourced by backup-tar.sh based on
+# SCRIPT_DIR (SCRIPT_DIR is available here). Holds the switches that apply to
+# the whole run; WHICH paths are archived is defined per path in
+# instances/<name>.conf (see instances/instances.conf.example).
+#
+# Everything below that is also a per-path setting is the DEFAULT here: a
+# instances/<name>.conf may override it for its own path.
+#
+# This file may contain the Telegram token: chmod 600, owned by root.
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+
+# Target directory (REQUIRED): every path gets its own sub-directory under it,
+# "<BACKUP_BASE>/<name>/<name>-<timestamp>.tar.gz". A instances/<name>.conf may
+# send its archives somewhere else entirely with DEST_DIR; "--dest DIR" on the
+# command line overrides both for one run.
+#
+# It must NOT lie inside one of the archived sources — the run would archive
+# its own archives. backup-tar.sh refuses such a path instead of producing an
+# ever-growing backup of backups.
+BACKUP_BASE="/srv/backup/tar"
+
+# Directory holding the per-path configurations (default: instances/ next to the
+# script). Rarely worth changing.
+# INSTANCES_DIR="$SCRIPT_DIR/paths"
+
+# Name of the completion marker inside BACKUP_BASE. It is written only after a
+# completely error-free run and is the contract with anything downstream (a
+# backup host pulling this tree, a monitoring check). Set to "" to disable it.
+MARKER_NAME=".complete"
+
+# ---------------------------------------------------------------------------
+# Retention
+# ---------------------------------------------------------------------------
+
+# How many days an archive is kept (default per path; a instances/<name>.conf may
+# override it with its own RETENTION_DAYS).
+ARCHIVE_RETENTION_DAYS=30
+
+# How many archives per path are kept REGARDLESS of their age. This is the
+# safety net against the classic mistake: a source that has not changed for
+# months would otherwise have all of its archives expire on the same day and be
+# left without a backup. Do not go below 2 — the older archive is the fallback
+# if the newest one turns out to be unusable.
+KEEP_MIN=2
+
+# Log retention (days). The script rotates its own logs, no logrotate needed.
+LOG_RETENTION_DAYS=64
+
+# ---------------------------------------------------------------------------
+# Compression
+# ---------------------------------------------------------------------------
+
+# gz   | .tar.gz  — the safe default. Readable everywhere, moderate ratio.
+#                   Uses pigz (all cores) when installed, otherwise gzip.
+# zst  | .tar.zst — clearly faster than gzip at a better ratio; needs zstd on
+#                   the RESTORING host too.
+# xz   | .tar.xz  — smallest, by far the slowest. For archives that are written
+#                   once and read almost never.
+# bz2  | .tar.bz2 — no reason to prefer it over zstd today; kept for hosts that
+#                   already standardised on it.
+# none | .tar     — no compression, e.g. for already-compressed data (photos,
+#                   videos, media libraries) where compressing only costs CPU.
+COMPRESSION="gz"
+
+# Compression level. Empty = the compressor's own default (gzip/zstd 6, xz 6).
+# gzip/bzip2 1-9, zstd 1-19, xz 0-9. Needs GNU tar >= 1.27.
+COMPRESSION_LEVEL=""
+
+# Cores for the parallel compressors (pigz/pbzip2/zstd/xz). 0 = all of them.
+# Set it to 1-2 on a host that has to stay responsive during the backup.
+# Needs GNU tar >= 1.27.
+COMPRESSION_THREADS=0
+
+# ---------------------------------------------------------------------------
+# What goes into the archive (defaults for every path)
+# ---------------------------------------------------------------------------
+
+# Do not descend into other filesystems. Set to true where a bind mount, an NFS
+# share or /proc could hide below a source — without it they end up in the
+# archive.
+ONE_FILE_SYSTEM=false
+
+# Store holes in sparse files instead of the zeroes in them. Worth it for VM
+# images and sparse database files, a measurable slowdown for everything else.
+SPARSE=false
+
+# Skip directories tagged with CACHEDIR.TAG (thumbnail caches, build caches).
+# They are regenerated on use, so archiving them only costs space.
+EXCLUDE_CACHES=true
+
+# Skip .git/.svn/… — only useful for source trees whose history lives on a
+# remote anyway. For a server backup this is usually NOT what you want.
+EXCLUDE_VCS=false
+
+# ---------------------------------------------------------------------------
+# Verification
+# ---------------------------------------------------------------------------
+
+# Read every finished archive back completely ("tar --list"). This is the only
+# thing that proves the archive can be read at all — the one property a backup
+# must have. It costs roughly the read half of the backup again; on a host
+# where the backup window is too tight for that, turn it off knowing what you
+# are giving up. An archive that fails the check is deleted.
+VERIFY_ARCHIVE=true
+
+# Write "<archive>.sha256" next to each archive, so a later transfer or a
+# suspicious disk can be checked with "sha256sum -c".
+WRITE_CHECKSUM=true
+
+# Minimum free space in the target directory (MB) that must be there BEFORE an
+# archive is written; below it the path fails instead of filling the disk.
+# 0 = do not check. A useful value is the size of the largest expected archive.
+MIN_FREE_MB=0
+
+# ---------------------------------------------------------------------------
+# Load
+# ---------------------------------------------------------------------------
+
+# nice level for tar and the compressor (0 = do not use nice). 10-19 keeps a
+# nightly multi-gigabyte archive from starving whatever else the host does.
+NICE_LEVEL=0
+
+# ionice class: 2 = best-effort, 3 = idle (only reads when nothing else does).
+# Empty = do not use ionice. Ignored where ionice is not installed.
+IONICE_CLASS=""
+
+# ---------------------------------------------------------------------------
+# Access
+#
+# A tar of an arbitrary directory contains everything that was in it, including
+# files only root could read. It must therefore not become world-readable just
+# because someone has to fetch it. The intended setup: the reading user is a
+# member of BACKUP_GROUP; the target directories are 0750 and setgid, the
+# archives 0640 (BACKUP_UMASK).
+# ---------------------------------------------------------------------------
+
+# Mode of BACKUP_BASE and its per-path sub-directories.
+BACKUP_MODE="0750"
+
+# Group that may read the archives. Empty = leave group ownership alone.
+BACKUP_GROUP=""
+# BACKUP_GROUP="backuppull"
+
+# umask for the archives. 0027 -> files 0640, directories 0750.
+BACKUP_UMASK="0027"
+
+# ---------------------------------------------------------------------------
+# Binaries
+# ---------------------------------------------------------------------------
+
+# GNU tar is required (the script uses --exclude-caches, --one-file-system and
+# --use-compress-program). Empty = "gtar" if it exists, otherwise "tar" — which
+# is right on Linux and on a host where GNU tar is installed as gtar next to a
+# BSD tar.
+TAR_BIN=""
+
+# Directories prepended to PATH. cron starts with a minimal PATH, and on some
+# hosts (e.g. a NAS) tar, zstd or pigz live in a non-standard location such as
+# /volume1/opt/bin. The programs actually needed are checked and logged at
+# startup.
+EXTRA_PATH=""
+# EXTRA_PATH="/usr/local/bin:/volume1/opt/bin"
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+# Telegram notification.
+#
+# The credentials live in ONE file for the whole host, so a token rotation is a
+# single edit instead of one per script. Create it with 0600 permissions,
+# outside every repository:
+#
+#   TELEGRAM_BOT_TOKEN="123456:AA..."
+#   TELEGRAM_CHAT_ID="987654"
+#
+# Leave both at "xxx" (or leave TELEGRAM_CONF empty) to disable notifications.
+# Setting TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID directly here still wins, so a
+# script can be moved over on its own schedule.
+TELEGRAM_CONF="/etc/runlib/telegram.conf"

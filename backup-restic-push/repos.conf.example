@@ -1,0 +1,40 @@
+# repos.conf — host-specific repository list
+#
+# One repository per line. Blank lines and comments (#) are ignored.
+# Copy to "repos.conf" and adjust.
+#
+# Two line forms:
+#   <name> = <url>   Named repository. The name (matching [A-Za-z0-9_-]+) lets an
+#                    instance pick this repo via TARGET_REPOS in its *.conf file.
+#   <url>            Bare URL. Its "name" defaults to the URL itself, so it can
+#                    still be referenced verbatim by TARGET_REPOS.
+# Names must be unique. restic URLs (rclone:/sftp:/s3:/paths) contain no "=", so
+# a bare URL is never mistaken for a "<name> = <url>" line.
+#
+# ANY backend supported by restic works. rclone is optional — only targets with
+# an "rclone:" prefix require rclone (and are checked for reachability
+# beforehand via "rclone lsd"). Other backends are used directly.
+#
+# IMPORTANT: Multiple hosts must write to SEPARATE repositories. restic repos
+# do not support simultaneous write access from multiple hosts.
+
+# Tip: one repository name per host (e.g. restic-<host>) so that multiple hosts
+# do not share the same repository.
+
+# --- Local / externally mounted (no rclone needed) ---
+local = /mnt/backup/restic-<host>
+# /srv/backup/restic-<host>
+
+# --- SFTP (no rclone needed) ---
+# sftp = sftp:user@backup-host:/srv/restic-<host>
+
+# --- S3 / compatible (no rclone needed; credentials via environment) ---
+# s3 = s3:s3.amazonaws.com/bucket-name/restic-<host>
+
+# --- Via rclone (rclone required, set up remote beforehand via "rclone config") ---
+#
+# CAUTION: root must be able to read the rclone.conf, otherwise these targets
+# are treated as "not reachable" and skipped. The script checks this at startup
+# and notes the result in the log. See "Configure rclone" in README.md.
+# offsite = rclone:pcloud:restic-<host>
+# archive = rclone:hetzner:restic-<host>
