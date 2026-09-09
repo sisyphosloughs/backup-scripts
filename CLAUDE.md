@@ -21,7 +21,7 @@ submodule `lib/runlib/`. The clone at the top level is where it is *developed*.
 ## The development environment is unusual — read this first
 
 This directory is an **SFTP/NFS mount of the remote host `milos`**
-(`/home/shanty/scripts`). Editing here edits the live host.
+(`/home/shanty/backup-scripts`). Editing here edits the live host.
 
 **The data does not exist on the development machine.** Docker, the containers,
 `/srv/backup`, restic and the real configurations live only on `milos`. Anything
