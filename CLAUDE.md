@@ -13,7 +13,8 @@ scripts, the library they share, and the wrapper that chains them:
 | `backup-docker-db/` | dumps Docker stack databases into a staging directory |
 | `backup-tar/` | one compressed tar archive per configured path |
 | `backup-restic-push/` | pushes local directories into restic repositories |
-| `backup-wrapper.sh` | the cron entry point; calls the three scripts in order |
+| `backup-wrapper.sh` | the cron entry point; calls the three scripts in order by absolute `/home/shanty/backup-scripts/...` paths, with no error handling between stages |
+| `backup-restic-push/backup-restic-push-wrapper.sh` | **manual** runs only: re-execs itself inside tmux and prompts for `RCLONE_CONFIG_PASS`; cron does not use it |
 | `telegram.conf` | bot token + chat id, `0600`, gitignored, read via `TELEGRAM_CONF` |
 
 The three modules were separate repositories until the monorepo import; wording
@@ -31,21 +32,34 @@ to another host — has to take `lib/` along.
 
 ## The development environment is unusual — read this first
 
-This directory is an **SFTP/NFS mount of the remote host `milos`**
-(`/home/shanty/backup-scripts`). Editing here edits the live host.
+There are **two separate git clones** of the same GitHub repository:
+
+| Where | Path | Role |
+|---|---|---|
+| development machine (macOS) | this directory | editing, `shellcheck` |
+| host `milos` | `/home/shanty/backup-scripts` | the live copy root's cron runs |
+
+Editing here does **not** change the host. Changes reach `milos` through git
+(push here, `git pull && git submodule update --init` there). No sync session is
+set up (`mutagen.yml` is gitignored in case one is created ad hoc). Before comparing
+behaviour, check that both clones are on the same commit. A fresh local clone
+has an empty `lib/runlib/` until `git submodule update --init` is run, and
+`shellcheck -x` cannot follow the runlib `source` without it.
 
 **The data does not exist on the development machine.** Docker, the containers,
 `/srv/backup`, restic and the real configurations live only on `milos`. Anything
 you want to verify has to run there:
 
 ```bash
-ssh milos '<command>'          # BatchMode key auth is set up
+ssh milos '<command>'          # BatchMode key auth is set up; no passwordless sudo
 ```
 
-Running the scripts straight from the mount fails on paths that do not exist
-locally. Running them on the host as `shanty` fails too: `logs/` in
-`backup-docker-db` and `backup-tar` is owned by `root` (cron runs as root), and
-`prepare_*_dir` chgrps to `nape`. The working recipe is a throwaway copy:
+Running the scripts in place on the host as `shanty` fails. The `logs/`
+directories are `shanty`-owned, but they hold `root`-owned files from cron runs,
+including the `.lock` that `acquire_lock` opens. On top of that, `prepare_*_dir`
+chgrps to `nape`. The working recipe is a throwaway copy with fresh `logs/` and
+the group changed to `shanty` (`BACKUP_GROUP` in `backup-tar`, `STAGING_GROUP` in
+`backup-docker-db`).
 
 The copy has to keep the collection's shape — module directory *and* `lib/`
 next to each other — because the script resolves runlib as `../lib/runlib`:
@@ -58,7 +72,9 @@ ssh milos 'T=$(mktemp -d); mkdir -p "$T/x"
   "$T/x/backup-tar/backup-tar.sh" --list; rm -rf "$T"'
 ```
 
-`backup-restic-push`'s `logs/` is `shanty`-owned, so it runs in place.
+This applies to `backup-restic-push` as well, since its `logs/.lock` is `root`-owned too.
+To test uncommitted local changes, copy the module and `lib/` from here into the
+temp directory (`scp -r`/`rsync`) instead of from the host clone.
 
 ## Checks
 
@@ -68,7 +84,9 @@ There is no build and no test framework. The checks are:
 bash -n <script>
 cd backup-docker-db   && shellcheck -x backup-docker-db.sh lib/db-dump-lib.sh
 cd backup-tar         && shellcheck -x backup-tar.sh lib/tar-lib.sh
-cd backup-restic-push && shellcheck -x backup-restic-push.sh   # no lib/ of its own
+cd backup-restic-push && shellcheck -x backup-restic-push.sh backup-restic-push-wrapper.sh   # no lib/ of its own
+cd lib/runlib         && shellcheck *.sh
+shellcheck backup-wrapper.sh
 ```
 
 `shellcheck -x` resolves `source` paths relative to the **current directory** —
@@ -102,7 +120,10 @@ backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic-push  ->
 Stages communicate through the filesystem plus a **completion marker**
 (`write_marker` in runlib): a temp file moved into place atomically, holding
 `completed_at`, `completed_epoch`, `host`, domain-specific keys, and
-`generator=`. The `generator` value is read by consumers — treat it as an
+`generator=` (`docker-db-dump`, `tar-backup`). Nothing in this repository reads
+the marker. `backup-restic-push` sets `RUN_USES_MARKER=0` and neither reads nor
+writes one. The consumers are pull-side users outside the repo (the reason for
+`STAGING_GROUP`/`BACKUP_GROUP`), so treat the keys and `generator` value as an
 interface, not a label.
 
 Each script owns a **domain library** that stays out of runlib because it is not
