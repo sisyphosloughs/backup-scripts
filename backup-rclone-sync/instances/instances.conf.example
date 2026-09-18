@@ -1,0 +1,131 @@
+# instances/<name>.conf — one file per mirrored tree
+#
+# Copy this template to instances/<name>.conf (e.g. instances/milos-tar.conf)
+# and adjust. backup-rclone-sync.sh collects every "*.conf" in this directory;
+# this ".example" file is ignored. Adding a mirror therefore never requires a
+# change to the script.
+#
+# The FILE NAME (without ".conf") is the mirror's name. It is
+#   - the label in the log and in the Telegram summary,
+#   - and the sub-directory under STAGING_BASE the tree lands in, unless DEST
+#     says otherwise.
+#
+# Each file is sourced on its own with all variables below reset to the
+# defaults from global.conf, so values never leak between mirrors. Leave a
+# variable out to get the global default.
+#
+# Either side may be a LOCAL path (absolute) or an rclone REMOTE ("name:path"
+# from rclone.conf, or an on-the-fly ":sftp,host=…,user=…:path"). What the
+# mirror is follows from the destination:
+#
+#   DEST local    a pull into staging. After an error-free mirror the script
+#                 writes its completion marker (MARKER_NAME) into DEST, for
+#                 whatever consumes the tree next — typically a backup-restic
+#                 instance with BACKUP_PATH=DEST.
+#   DEST remote   a push. No marker is written; the tree on the remote is a
+#                 copy of the local one, retention included.
+#
+# Only SOURCE is required when STAGING_BASE is set in global.conf. A complete,
+# perfectly ordinary pull is:
+#
+#   SOURCE="milos:/srv/backup/tar"
+#   SOURCE_MARKER=".complete"
+#
+# and a complete push is:
+#
+#   SOURCE="/volume1/backup/staging/milos-tar"
+#   DEST="pcloud:Backup/milos-tar"
+
+# ---------------------------------------------------------------------------
+# What is mirrored (REQUIRED)
+#
+# The tree to read. Its CONTENTS land in DEST — "milos:/srv/backup/tar" ends
+# up as "<DEST>/<name of each path>/…", not as "<DEST>/tar/…". For several
+# unrelated trees use several *.conf files: each gets its own destination, its
+# own line in the summary, and one of them failing does not cost the others.
+# ---------------------------------------------------------------------------
+SOURCE="milos:/srv/backup/tar"
+
+# Where it lands. Default: "$STAGING_BASE/<name>" from global.conf. Set it to
+# put the copy somewhere else — another volume, or a remote for a push:
+# DEST="/volume2/mirror/milos-tar"
+# DEST="pcloud:Backup/milos-tar"
+#
+# A local DEST must not lie inside SOURCE (the mirror would mirror itself) and
+# SOURCE must not lie inside DEST (a sync would delete the source); two mirrors
+# must not share a local tree. The script refuses all three.
+
+# Skip this mirror without deleting its configuration (default true).
+# ENABLED=false
+
+# ---------------------------------------------------------------------------
+# sync or copy (default sync)
+#
+# sync   DEST becomes an exact mirror of SOURCE: what the source deleted, the
+#        destination deletes too. Retention is the producer's business (a tar
+#        tree keeps ARCHIVE_RETENTION_DAYS of archives, and so does its mirror).
+#        Guarded by MAX_DELETE.
+# copy   only adds and updates, never deletes. The destination accumulates
+#        everything the source ever had — for a push where the remote should
+#        hold more history than the local tree, with a cleanup of your own.
+# ---------------------------------------------------------------------------
+# MODE="sync"
+
+# ---------------------------------------------------------------------------
+# The source's completion marker (optional, strongly recommended for a tree
+# another script of this family produces)
+#
+# backup-tar and backup-docker-db write a marker at the root of their tree
+# ONLY after an error-free run. When SOURCE_MARKER names it, this mirror reads
+# it first and refuses to sync if it is missing or older than
+# MARKER_MAX_AGE_HOURS: the producer has not completed, and a half-written
+# tree must not overwrite yesterday's good copy. The destination then keeps
+# what it has, and its own marker keeps its old date, which is what a
+# freshness check downstream should notice.
+#
+# The values read (completed_at, host, generator) are recorded in this
+# mirror's own marker as source_completed_at, source_host, source_generator.
+# The source's marker file itself is NOT copied — the destination's marker is
+# this script's.
+# ---------------------------------------------------------------------------
+SOURCE_MARKER=".complete"
+# MARKER_MAX_AGE_HOURS=26
+
+# ---------------------------------------------------------------------------
+# Excludes
+#
+# rclone filter syntax, applied relative to SOURCE. The rules worth knowing:
+#   - a pattern without a leading "/" matches at ANY depth, one with a leading
+#     "/" only at the root of the mirror;
+#   - "*" does not cross "/", "**" does — so a DIRECTORY and its contents are
+#     excluded with "name/**", a bare "name" only matches a file of that name;
+#   - the script's own markers at the root are excluded automatically.
+# ---------------------------------------------------------------------------
+EXCLUDES=(
+  # "@eaDir/**"
+  # "#recycle/**"
+  # "#snapshot/**"
+  # ".DS_Store"
+  # "*.tmp"
+)
+
+# A file with one pattern per line, for lists too long to keep here (rclone's
+# --exclude-from syntax).
+# EXCLUDE_FROM="/etc/rclone-sync/milos-tar.excludes"
+
+# ---------------------------------------------------------------------------
+# Safety for this mirror (default from global.conf)
+#
+# The deletion cap for "sync". Raise it for one run when a large cleanup on the
+# source is expected, set it to "" only if you are sure the source can never
+# turn up empty.
+# ---------------------------------------------------------------------------
+# MAX_DELETE=100
+
+# ---------------------------------------------------------------------------
+# Anything else rclone should do for this mirror, on top of RCLONE_GLOBAL_OPTS
+# from global.conf: "--links" / "--copy-links" for symlinks in a local source,
+# "--sftp-skip-links" to quieten an sftp source, "--fast-list" for a cloud
+# remote, "--checksum" where mtimes are not to be trusted.
+# ---------------------------------------------------------------------------
+# RCLONE_OPTS=( "--sftp-skip-links" )

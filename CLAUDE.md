@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this directory is
 
-**One repository, `sisyphosloughs/backup-scripts`**, holding three independent
+**One repository, `sisyphosloughs/backup-scripts`**, holding four independent
 scripts, the library they share, and the wrapper that chains them:
 
 | Path | Role |
@@ -13,6 +13,7 @@ scripts, the library they share, and the wrapper that chains them:
 | `backup-docker-db/` | dumps Docker stack databases into a staging directory |
 | `backup-tar/` | one compressed tar archive per configured path |
 | `backup-restic/` | backs up local directories into restic repositories, local or remote |
+| `backup-rclone-sync/` | mirrors trees with rclone: pulls a remote tree into local staging (writes a marker there, reads the source's marker first) or pushes a local tree to a cloud |
 | `backup-wrapper.sh` | the cron entry point; calls the three scripts in order by absolute `/home/shanty/backup-scripts/...` paths, with no error handling between stages |
 | `backup-restic/backup-restic-wrapper.sh` | **manual** runs only: re-execs itself inside tmux and prompts for `RCLONE_CONFIG_PASS`; cron does not use it |
 | `telegram.conf` | bot token + chat id, `0600`, gitignored, read via `TELEGRAM_CONF` |
@@ -20,7 +21,7 @@ scripts, the library they share, and the wrapper that chains them:
 The three modules were separate repositories until the monorepo import; wording
 that still says “this repo” in a module README means the module.
 
-runlib is bound **once**, as the submodule `lib/runlib/`. All three scripts load
+runlib is bound **once**, as the submodule `lib/runlib/`. All four scripts load
 it from there (`$ROOT_DIR/lib/runlib/runlib.sh`, with
 `ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"`). It used to be a separate submodule
 per module as well; that allowed four diverging pointers, which would have
@@ -39,7 +40,7 @@ per host**, each on its own branch and each mirrored to its host by mutagen:
 |---|---|---|---|
 | `~/Git/backup-scripts` | `main` | — | shared rules; no sync |
 | `~/Work/backup-scripts-milos` | `host/milos` | `milos:~/backup-scripts` (= `/home/shanty/backup-scripts`) | the live copy root's cron runs |
-| `~/Work/backup-scripts-ikaria` | `host/ikaria` | `ikaria:~/backup-scripts` (= `/var/services/homes/bbruecker/backup-scripts`) | Synology NAS |
+| `~/Work/backup-scripts-ikaria` | `host/ikaria` | `ikaria:/volume1/scripts/backup-scripts` | Synology NAS |
 
 **Saving a file in a host worktree changes that host within seconds** — on
 milos that is the code the next 01:00 cron run executes. Commit and push from
@@ -89,7 +90,8 @@ The hosts differ more than the code assumes:
 | System | Ubuntu 24.04 | Synology DS720+, DSM (kernel 4.4) |
 | Scheduling | root's crontab → `backup-wrapper.sh` | no `crontab` binary; DSM Task Scheduler (`synoschedtask` entries in `/etc/crontab`) |
 | bash | 5.2 | 4.4 |
-| Tools | `docker`, `restic`, `rclone` in `/usr/bin` | `docker` only at `/usr/local/bin` (Container Manager), not on a non-login `PATH`; no `restic`; `rclone` present |
+| Tools | `docker`, `restic`, `rclone`, `rsync` in `/usr/bin` | `docker` and `restic` (0.19, package) only at `/usr/local/bin`, not on a non-login `PATH`; `rclone` 1.74, `rsync`, `jq`, `flock` in `/usr/bin` |
+| SSH | reachable from ikaria as `shanty` (ikaria's key is authorised); `shanty` is **not** in group `nape`, so it cannot read `/srv/backup/*` — a pull of those trees needs that group membership on milos | cannot SSH to itself; no `milos` alias in its ssh config (use the full hostname from `ssh -G milos` on the Mac) |
 | Backup paths | `/srv/backup/...` | no `/srv` |
 
 `backup-wrapper.sh` (`/home/shanty/...`) and the template default
@@ -135,6 +137,7 @@ bash -n <script>
 cd backup-docker-db   && shellcheck -x backup-docker-db.sh lib/db-dump-lib.sh
 cd backup-tar         && shellcheck -x backup-tar.sh lib/tar-lib.sh
 cd backup-restic && shellcheck -x backup-restic.sh backup-restic-wrapper.sh   # no lib/ of its own
+cd backup-rclone-sync && shellcheck -x backup-rclone-sync.sh lib/rclone-sync-lib.sh
 cd lib/runlib         && shellcheck *.sh
 shellcheck backup-wrapper.sh
 ```
@@ -150,7 +153,14 @@ Dry checks that touch no data and write no completion marker:
 ./backup-docker-db.sh --list
 ./backup-tar.sh --list ; ./backup-tar.sh --dry-run
 ./backup-restic.sh --list
+./backup-rclone-sync.sh --list ; ./backup-rclone-sync.sh --dry-run
 ```
+
+For `backup-rclone-sync` the throwaway-copy recipe works on ikaria as
+`bbruecker` with local sources under `/volume1/@tmp` and, for a real transfer,
+an on-the-fly sftp source
+`:sftp,host=<milos fqdn>,user=shanty,key_file=$HOME/.ssh/id_ed25519:/home/shanty/...`
+(the `local:` remote in ikaria's `rclone.conf` serves as a "remote" destination).
 
 To silence Telegram while testing, point `TELEGRAM_CONF` at a file holding
 `xxx` values — `telegram_configured` then turns notifications off with no code
@@ -158,28 +168,43 @@ change.
 
 ## Architecture
 
-The three scripts are a pipeline of single-purpose stages, run nightly at 01:00
-by **root's crontab**, which invokes only `backup-wrapper.sh` (verified in
-syslog; `shanty`'s crontab is empty and there are no systemd timers).
+The scripts are a pipeline of single-purpose stages. On milos three of them
+run nightly at 01:00 by **root's crontab**, which invokes only
+`backup-wrapper.sh` (verified in syslog; `shanty`'s crontab is empty and there
+are no systemd timers):
 
 ```
 backup-docker-db  ->  /srv/backup/db-staging  ─┐
 backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic  ->  restic repos
 ```
 
+`backup-rclone-sync` is the fourth stage, meant for ikaria: it pulls the trees
+above over sftp into a local staging directory (checking their marker first)
+so that `backup-restic` there can back them up into a local repository, and it
+pushes local trees to a cloud that speaks no SSH. Either side of a mirror may
+be local or remote; the direction decides whether it acts as a producer
+(local destination → writes a marker) or a consumer (remote destination → no
+marker). It has no retention: `sync` mirrors the producer's retention,
+`MAX_DELETE` and `SOURCE_MARKER` guard against mirroring an empty or
+half-written source. The decision for rclone over rsync (cloud targets, no
+tool needed on the source; ownership is not preserved over sftp) is recorded
+in GitHub issue #1.
+
 Stages communicate through the filesystem plus a **completion marker**
 (`write_marker` in runlib): a temp file moved into place atomically, holding
 `completed_at`, `completed_epoch`, `host`, domain-specific keys, and
-`generator=` (`docker-db-dump`, `tar-backup`). Nothing in this repository reads
-the marker. `backup-restic` sets `RUN_USES_MARKER=0` and neither reads nor
-writes one. The consumers are pull-side users outside the repo (the reason for
-`STAGING_GROUP`/`BACKUP_GROUP`), so treat the keys and `generator` value as an
-interface, not a label.
+`generator=` (`docker-db-dump`, `tar-backup`, `rclone-sync`). `backup-restic`
+sets `RUN_USES_MARKER=0` and neither reads nor writes one. The only reader in
+the repository is `backup-rclone-sync` (`marker_value`/`marker_age` in runlib,
+via `SOURCE_MARKER`); other consumers are pull-side users outside the repo (the
+reason for `STAGING_GROUP`/`BACKUP_GROUP`). Treat the keys and `generator`
+value as an interface, not a label.
 
 Each script owns a **domain library** that stays out of runlib because it is not
 generic: `backup-docker-db/lib/db-dump-lib.sh` (engines, container detection,
-dump rotation) and `backup-tar/lib/tar-lib.sh` (compressor choice, tar call,
-verification, archive rotation).
+dump rotation), `backup-tar/lib/tar-lib.sh` (compressor choice, tar call,
+verification, archive rotation) and `backup-rclone-sync/lib/rclone-sync-lib.sh`
+(remote detection, marker fetch, JSON log filter, statistics).
 
 `runlib` supplies the run skeleton: `run_init`/`run_traps`/`run_worker_loop`/
 `run_finish`, the one-`*.conf`-per-object loader `instances_load`, `log_*`,
@@ -188,7 +213,7 @@ verification, archive rotation).
 ### Domain wording is preserved deliberately
 
 Generic code must not flatten the vocabulary of each script. The log says
-`Stack 'vaultwarden'`, `Path 'containers'`, `Instance 'db-staging'` — three
+`Stack 'vaultwarden'`, `Path 'containers'`, `Instance 'db-staging'`, `Mirror 'milos-tar'` — four
 different words for the same loader. This is done through wording knobs, not
 through duplicated code: `INSTANCE_LABEL` for loader messages, `RUN_WHAT` /
 `RUN_UNIT` / `RUN_OK_VERB` / `RUN_ABORT_HINT` and friends for summaries and
@@ -215,7 +240,7 @@ stdout (`cid="$(_resolve_container …)"`). runlib deliberately defines no bare
 dump file, into `/dev/null`, or into restic's `--json` pipe.
 
 **Log file names do not follow the script names.** The prefixes are `db-dump`,
-`tar-backup` and `backup`. `log_rotate` matches old files by prefix, so renaming
+`tar-backup`, `backup` (backup-restic) and `rclone-sync`. `log_rotate` matches old files by prefix, so renaming
 one orphans the existing logs. (Renaming them is a live option — it needs a
 one-time rename of the old files in the same change.)
 
@@ -242,7 +267,7 @@ git submodule update --remote lib/runlib
 # then commit the moved pointer together with the code that needs the new version
 ```
 
-One pointer moves all three scripts at once — that is the point of binding
+One pointer moves all four scripts at once — that is the point of binding
 runlib only here.
 
 Deploying to a fresh host needs `git clone --recurse-submodules`, an existing

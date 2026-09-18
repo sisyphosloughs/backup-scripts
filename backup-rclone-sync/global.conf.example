@@ -1,0 +1,145 @@
+# global.conf — host-specific global configuration for backup-rclone-sync.sh
+#
+# Copy to "global.conf" and adjust. Sourced by backup-rclone-sync.sh based on
+# SCRIPT_DIR (SCRIPT_DIR is available here). Holds the switches that apply to
+# the whole run; WHICH trees are mirrored is defined per mirror in
+# instances/<name>.conf (see instances/instances.conf.example).
+#
+# Everything below that is also a per-mirror setting is the DEFAULT here: an
+# instances/<name>.conf may override it for its own mirror.
+#
+# This file may contain the Telegram token: chmod 600, owned by root.
+
+# ---------------------------------------------------------------------------
+# rclone
+# ---------------------------------------------------------------------------
+
+# Absolute path to the rclone binary (optional). Leave empty to use whatever is
+# found in PATH. On some hosts the binary lives in a location that is not in
+# the (cron / task scheduler) PATH; set the absolute path then. The
+# availability is checked and logged at startup.
+RCLONE_BIN=""
+# RCLONE_BIN="/usr/bin/rclone"
+
+# rclone configuration file. Absolute path to the rclone.conf holding the
+# remotes the mirrors refer to. Set it whenever the rclone.conf is not at the
+# default path of the user this script runs as — that user is usually root,
+# and "rclone config" was usually run as somebody else, so the default path is
+# usually wrong. The script passes the path explicitly to every rclone call.
+# The path must be readable by the executing user.
+#
+# The file must NOT be password-encrypted for an unattended run: rclone would
+# block on the password prompt. Keep it 0600 instead.
+#
+# Leave empty = rclone's default path for the executing user.
+RCLONE_CONFIG_FILE=""
+# RCLONE_CONFIG_FILE="/root/.config/rclone/rclone.conf"
+
+# Parallelism and bandwidth, passed to rclone as --transfers / --checkers /
+# --bwlimit. Empty = rclone's defaults (4 transfers, 8 checkers, unlimited).
+# A NAS pulling from a VPS over the internet is usually fine with the
+# defaults; a cloud push during the day may want a --bwlimit such as "10M"
+# or a schedule like "08:00,2M 23:00,off".
+TRANSFERS=""
+CHECKERS=""
+BWLIMIT=""
+
+# Any other rclone flag that should apply to EVERY mirror, as an array. A
+# per-mirror RCLONE_OPTS in instances/<name>.conf comes on top of this.
+# Typical: "--fast-list" for a cloud remote that supports it, "--links" to
+# carry symlinks along as .rclonelink files, "--sftp-skip-links" to silence
+# the notice sftp prints for every symlink it skips.
+RCLONE_GLOBAL_OPTS=()
+# RCLONE_GLOBAL_OPTS=( "--links" )
+
+# Progress during a mirror (default 30 seconds). rclone's statistics are
+# rendered as one compact line — percent, bytes, files, deletions, ETA — per
+# this many seconds, printed to terminal and log, so a long (e.g. initial)
+# mirror visibly does something. 0 = only the final line.
+PROGRESS_INTERVAL=30
+
+# ---------------------------------------------------------------------------
+# Staging: where pulled trees land
+# ---------------------------------------------------------------------------
+
+# Default destination for a mirror that sets no DEST of its own:
+# "<STAGING_BASE>/<name>". A mirror that pushes to a remote, or wants its local
+# copy elsewhere, sets DEST in its instances/<name>.conf. Leave empty if every
+# mirror sets its own DEST.
+#
+# It must NOT lie inside a tree that another script archives or backs up with
+# a wide brush (a backup-tar SOURCE, a backup-restic BACKUP_PATH that is not
+# meant to include it) — the run would archive its own staging. The script
+# cannot see those configurations, so this is yours to keep apart.
+STAGING_BASE="/volume1/backup/staging"
+
+# Directory holding the per-mirror configurations (default: instances/ next to
+# the script). Rarely worth changing.
+# INSTANCES_DIR="$SCRIPT_DIR/instances"
+
+# Name of the completion marker written into every LOCAL destination after an
+# error-free mirror. This is the contract with whatever consumes the tree next
+# — a backup-restic instance, a monitoring check, another mirror that sets it
+# as its SOURCE_MARKER. Set to "" to disable markers.
+MARKER_NAME=".complete"
+
+# ---------------------------------------------------------------------------
+# Safety
+# ---------------------------------------------------------------------------
+
+# How many deletions a "sync" may perform in one run before rclone aborts it
+# (--max-delete). This is the guard against the classic accident: a source
+# that is suddenly empty — a share that was not mounted, a path that moved —
+# would otherwise make sync empty the destination too. Deletions stop at the
+# threshold, the copies already made stay, the mirror counts as failed and
+# keeps its older marker. Size it above what a normal night deletes (a tar tree
+# with a 30-day retention rotates a few archives per path) and raise it per
+# mirror where a large cleanup is expected. Empty = unlimited (not recommended).
+MAX_DELETE=100
+
+# Default for mirrors that check the source's completion marker
+# (SOURCE_MARKER in instances/<name>.conf): a marker older than this many hours
+# means the producer did not complete, and the mirror is refused. 26 covers a
+# nightly producer with some slack.
+MARKER_MAX_AGE_HOURS=26
+
+# ---------------------------------------------------------------------------
+# Access for the consumer
+#
+# A pulled tree holds whatever the source held — database dumps, a whole
+# document share — so it must not become world-readable just because
+# something has to read it. The intended setup: the consumer runs as root or
+# is a member of STAGING_GROUP; the directories are 0750 and setgid, the files
+# 0640 (STAGING_UMASK).
+# ---------------------------------------------------------------------------
+
+# Mode of every local destination directory.
+STAGING_MODE="0750"
+
+# Group that may read the mirrored trees. Empty = leave group ownership alone.
+STAGING_GROUP=""
+# STAGING_GROUP="backuppull"
+
+# umask while rclone writes. 0027 -> files 0640, directories 0750.
+STAGING_UMASK="0027"
+
+# ---------------------------------------------------------------------------
+# Logging and notification
+# ---------------------------------------------------------------------------
+
+# Log retention (days). The script rotates its own logs, no logrotate needed.
+LOG_RETENTION_DAYS=64
+
+# Telegram notification.
+#
+# The credentials live in ONE file for the whole host, so a token rotation is a
+# single edit instead of one per script. Create it with 0600 permissions,
+# outside every repository:
+#
+#   TELEGRAM_BOT_TOKEN="123456:AA..."
+#   TELEGRAM_CHAT_ID="987654"
+#
+# Leave both at "xxx" (or leave TELEGRAM_CONF empty) to disable notifications.
+# Setting TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID directly here still wins, so a
+# script can be moved over on its own schedule.
+TELEGRAM_CONF="/etc/runlib/telegram.conf"

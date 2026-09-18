@@ -7,6 +7,9 @@ one library and are chained by a nightly wrapper.
 ```
 backup-docker-db  ->  /srv/backup/db-staging  ─┐
 backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic  ->  restic repos
+                                                 │
+                                    backup-rclone-sync (pull)  ->  staging on another host  ->  backup-restic (local repo)
+                                    backup-rclone-sync (push)  ->  a cloud without SSH
 ```
 
 ## Modules
@@ -16,6 +19,7 @@ backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic  ->  res
 | [`backup-docker-db/`](backup-docker-db/) | Dumps the databases of Docker stacks locally (SQLite, MariaDB, MySQL, PostgreSQL) into a staging directory and writes a completion marker. Holds no backup credential. |
 | [`backup-tar/`](backup-tar/) | Writes **one compressed tar archive per configured path**, with per-path retention, checksum and verification. |
 | [`backup-restic/`](backup-restic/) | Backs up local directories — including the output of the two above — into one or more restic repositories, local or remote. Any restic backend; rclone only for `rclone:` targets. |
+| [`backup-rclone-sync/`](backup-rclone-sync/) | Mirrors trees with rclone, one per instance: pulls another host's staging or tar tree into a local staging directory (and writes a completion marker there), or pushes a local tree to a cloud. Refuses a source whose completion marker is missing or stale; caps deletions. |
 | [`lib/runlib/`](lib/runlib/) | The shared run skeleton: log file, error account, lock, `instances/*.conf` loader, summary, Telegram, completion marker, command logging. Git submodule, bound once for all modules, see below. |
 
 `backup-wrapper.sh` is the cron entry point: it runs the three scripts in the
@@ -36,7 +40,7 @@ no matter which one produced it. What differs per script is its wording, set
 through the knobs runlib reads (`RUN_WHAT`, `INSTANCE_LABEL`, …).
 
 It is bound **here and nowhere else**: each module resolves it as
-`../lib/runlib`, so one pointer moves all three scripts and they cannot drift
+`../lib/runlib`, so one pointer moves all four scripts and they cannot drift
 apart. The flip side is that a module directory does not run on its own — it
 needs `lib/` beside it, both when testing and when rolling out.
 
@@ -79,13 +83,15 @@ Dry checks that touch no data and write no completion marker:
 ./backup-docker-db/backup-docker-db.sh --list
 ./backup-tar/backup-tar.sh --list ; ./backup-tar/backup-tar.sh --dry-run
 ./backup-restic/backup-restic.sh --list
+./backup-rclone-sync/backup-rclone-sync.sh --list ; ./backup-rclone-sync/backup-rclone-sync.sh --dry-run
 ```
 
 ## Requirements
 
 bash 3.2 or newer (busybox is a target too), plus per module: `docker` and the
 database clients for `backup-docker-db`, `tar` and a compressor for
-`backup-tar`, `restic` (and optionally `rclone`) for `backup-restic`.
+`backup-tar`, `restic` (and optionally `rclone`) for `backup-restic`, `rclone`
+for `backup-rclone-sync`.
 
 ## Licence
 
