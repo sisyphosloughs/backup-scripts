@@ -6,5 +6,5 @@
 # Tar-Backups erzeugen
 /home/shanty/backup-scripts/backup-tar/backup-tar.sh
 
-# Daten remote sichern
-/home/shanty/backup-scripts/backup-restic-push/backup-restic-push.sh
+# Daten in restic-Repositories sichern
+/home/shanty/backup-scripts/backup-restic/backup-restic.sh

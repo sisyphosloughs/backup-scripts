@@ -1,10 +1,13 @@
-# backup-restic-push
+# backup-restic
 
-Pushes local directories into one or more restic repositories, on various hosts
-(e.g. a Linux VPS or a NAS). A single script, with host-specific configuration in
-separate files in the same directory. Any backend supported by restic can serve
-as the target (local, SFTP, S3, REST, …); rclone is optional and only needed for
-`rclone:` targets.
+Backs up local directories into one or more restic repositories, on various
+hosts (e.g. a Linux VPS or a NAS). A single script, with host-specific
+configuration in separate files in the same directory. Any backend supported by
+restic can serve as the target — a local path, SFTP, S3, REST, … — so the same
+script covers "push to an off-site repository" and "back up a staging directory
+into a repository on this host"; rclone is optional and only needed for
+`rclone:` targets. What must be local is the **source**: an instance names a
+directory on this host.
 
 It backs up **what it is pointed at and nothing else**: no container is stopped,
 no database is dumped here. That is deliberate — each script in this family does
@@ -12,9 +15,9 @@ one job:
 
 | Script | Does |
 |---|---|
-| [backup-docker-db](https://github.com/sisyphosloughs/backup-docker-db) | dumps the databases of Docker stacks into a staging directory |
-| [backup-tar](https://github.com/sisyphosloughs/backup-tar) | writes one compressed tar archive per configured path |
-| **this script** | pushes directories — including the two above — into restic repositories |
+| [backup-docker-db](../backup-docker-db/) | dumps the databases of Docker stacks into a staging directory |
+| [backup-tar](../backup-tar/) | writes one compressed tar archive per configured path |
+| **this script** | backs up directories — including the two above — into restic repositories |
 
 So a database ends up off-site by pointing an instance at `backup-docker-db`'s
 staging directory, not by teaching this script about containers.
@@ -27,8 +30,8 @@ live in `global.conf`.
 
 ```
 <location>/
-├── backup-restic-push.sh             # the script (identical on all hosts)
-├── backup-restic-push-wrapper.sh     # optional interactive front-end for manual runs (tmux + rclone-config password prompt)
+├── backup-restic.sh             # the script (identical on all hosts)
+├── backup-restic-wrapper.sh     # optional interactive front-end for manual runs (tmux + rclone-config password prompt)
 ├── global.conf                  # host-specific global config (from global.conf.example)
 ├── instances/                   # one *.conf per backed-up object
 │   ├── instances.conf.example   # template for an instance
@@ -138,7 +141,7 @@ defined for (see
    > on every run — see [NAS systems](#nas-systems).
 
 7. **Databases** — not this script's job. Install
-   [backup-docker-db](https://github.com/sisyphosloughs/backup-docker-db) on the
+   [backup-docker-db](../backup-docker-db/) on the
    host, point it at your stacks, and add one instance here for its
    `STAGING_DIR`:
 
@@ -274,7 +277,7 @@ The script must run with root privileges so that every file under the
 configured paths is readable:
 
 ```bash
-sudo ./backup-restic-push.sh
+sudo ./backup-restic.sh
 ```
 
 | Option | Meaning |
@@ -288,7 +291,7 @@ Exit code: `0` on success, `1` on one or more errors.
 ## What the notification says
 
 ```
-✅ [srv1] restic push completed
+✅ [srv1] restic backup completed
 Duration: 0m39s
 Repositories: 2/2 successful
 Paths: /srv/backup/db-staging /opt/containers /srv/documents
@@ -311,10 +314,10 @@ Two of those lines carry information the counts alone do not:
 A repository that could not be reached is listed too (`SKIPPED (not
 reachable)`), so the `2/3` in the count is never a riddle.
 
-## Manual runs (`backup-restic-push-wrapper.sh`)
+## Manual runs (`backup-restic-wrapper.sh`)
 
-`backup-restic-push-wrapper.sh` is a thin, **interactive** front-end for backing up by
-hand — the counterpart to the unattended `cron` run of `backup-restic-push.sh`. It
+`backup-restic-wrapper.sh` is a thin, **interactive** front-end for backing up by
+hand — the counterpart to the unattended `cron` run of `backup-restic.sh`. It
 changes nothing about the backup itself; it only wraps the script in two
 conveniences for kicking off a manual sync over SSH:
 
@@ -337,11 +340,11 @@ screen instead of the tmux window closing immediately.
 Run it as **root**, exactly like the script it wraps:
 
 ```bash
-sudo ./backup-restic-push-wrapper.sh
+sudo ./backup-restic-wrapper.sh
 ```
 
 > **Requires `tmux`** in `PATH`. This path is for interactive use only — the
-> unattended `cron` run calls `backup-restic-push.sh` directly (see [Cron](#cron)), so
+> unattended `cron` run calls `backup-restic.sh` directly (see [Cron](#cron)), so
 > an encrypted `rclone.conf` is either used only for these manual runs, or
 > `RCLONE_CONFIG_PASS` must be supplied to cron by other means.
 
@@ -433,7 +436,7 @@ Daily backup at 03:00:
 
 ```cron
 # m h dom mon dow  command
-0 3 * * * /path/to/location/backup-restic-push.sh
+0 3 * * * /path/to/location/backup-restic.sh
 ```
 
 `restic`/`rclone` are often located under `/usr/local/bin`, which may be missing
@@ -443,7 +446,7 @@ from the cron environment. To be safe, set `PATH`:
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Daily backup at 03:00
-0 3 * * * /path/to/location/backup-restic-push.sh
+0 3 * * * /path/to/location/backup-restic.sh
 ```
 
 Alternatively (or for binaries in non-standard locations), set `RESTIC_BIN` /
@@ -455,7 +458,7 @@ Telegram — an additional cron redirect is not needed. If you still want to
 capture the cron output (e.g. the script's startup error):
 
 ```cron
-0 3 * * * /path/to/location/backup-restic-push.sh >> /path/to/location/logs/cron.log 2>&1
+0 3 * * * /path/to/location/backup-restic.sh >> /path/to/location/logs/cron.log 2>&1
 ```
 
 ## NAS systems
@@ -469,7 +472,7 @@ scheduler and advise against editing the crontab directly. Set the task up
 there as the user `root`, with the absolute path to the script as the command:
 
 ```bash
-/path/to/location/backup-restic-push.sh
+/path/to/location/backup-restic.sh
 ```
 
 Telegram delivers the result; the full log is in `logs/`.
@@ -555,4 +558,4 @@ The following must be available on the host:
 | `rclone` | only for `rclone:` targets | **optional** — not needed for local/SFTP/S3/REST targets; set up remotes beforehand via `rclone config`. Found in `PATH`, or set `RCLONE_BIN` to an absolute path (no `PATH` entry needed then) |
 | `curl` | Telegram notification | only needed if Telegram is configured |
 | `jq` | parse restic's JSON output | **optional** — without `jq` a `grep` fallback is used |
-| `tmux` | keep a manual run alive over SSH | **optional** — only for `backup-restic-push-wrapper.sh` (manual runs); not needed for cron |
+| `tmux` | keep a manual run alive over SSH | **optional** — only for `backup-restic-wrapper.sh` (manual runs); not needed for cron |

@@ -2,7 +2,7 @@
 #
 # Copy this template to instances/<name>.conf (e.g. instances/audiobooks.conf,
 # instances/containers.conf) and adjust. The file name (without ".conf") is the
-# instance name shown in the log. backup-restic-push.sh collects every "*.conf" file
+# instance name shown in the log. backup-restic.sh collects every "*.conf" file
 # in this directory; this ".example" file is ignored.
 #
 # Each file is sourced on its own with the variables below reset beforehand, so

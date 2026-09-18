@@ -316,8 +316,8 @@ directories one writes and another reads:
 | Script | Writes | Reads |
 |---|---|---|
 | **this one** | `STAGING_DIR` + a `.complete` marker | the stacks under `STACKS_BASE` |
-| [backup-tar](https://github.com/sisyphosloughs/backup-tar) | one tar archive per path + its own marker | the paths it is configured with |
-| [backup-restic-push](https://github.com/sisyphosloughs/backup-restic-push) | snapshots in restic repositories | any directory — including this script's `STAGING_DIR` |
+| [backup-tar](../backup-tar/) | one tar archive per path + its own marker | the paths it is configured with |
+| [backup-restic](../backup-restic/) | snapshots in restic repositories | any directory — including this script's `STAGING_DIR` |
 
 `lib/db-dump-lib.sh` used to be vendored from the restic repository, which
 carried the authoritative copy. That copy is gone: the restic side no longer

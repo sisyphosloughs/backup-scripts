@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# backup-restic-push.sh — pushes local directories into one or more restic repos.
+# backup-restic.sh — backs up local directories into one or more restic repos.
 #
 # It backs up what it is pointed at and nothing else: no container is stopped,
 # no database is dumped here. Database dumps are produced by backup-docker-db,
@@ -78,7 +78,7 @@ ACTION="run"
 
 usage() {
   cat <<'EOF'
-Usage: backup-restic-push.sh [options]
+Usage: backup-restic.sh [options]
 
 Backs up the paths configured in instances/*.conf into the repositories listed
 in repos.conf — one snapshot per repository.
@@ -596,12 +596,12 @@ repo_reachable() {
 
 # shellcheck disable=SC2034  # every name here is read by lib/runlib, not below.
 {
-  RUN_WHAT="restic push"
+  RUN_WHAT="restic backup"
   RUN_LOG_NAME="Backup run"
   RUN_UNIT="Repositories"
   RUN_ABORT_HINT="No snapshot was completed for this run; the repositories still hold the previous ones."
-  # This script pushes to remote repositories — there is no local tree for
-  # anyone to pull, so it publishes no completion marker.
+  # This script writes snapshots into restic repositories — local or remote —
+  # not a directory tree anyone pulls, so it publishes no completion marker.
   RUN_USES_MARKER=0
   INSTANCE_LABEL="Instance"
   INSTANCE_LABEL_LC="instance"

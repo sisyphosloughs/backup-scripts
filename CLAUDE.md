@@ -12,9 +12,9 @@ scripts, the library they share, and the wrapper that chains them:
 | `lib/runlib/` | shared Bash library, published as `sisyphosloughs/runlib` |
 | `backup-docker-db/` | dumps Docker stack databases into a staging directory |
 | `backup-tar/` | one compressed tar archive per configured path |
-| `backup-restic-push/` | pushes local directories into restic repositories |
+| `backup-restic/` | backs up local directories into restic repositories, local or remote |
 | `backup-wrapper.sh` | the cron entry point; calls the three scripts in order by absolute `/home/shanty/backup-scripts/...` paths, with no error handling between stages |
-| `backup-restic-push/backup-restic-push-wrapper.sh` | **manual** runs only: re-execs itself inside tmux and prompts for `RCLONE_CONFIG_PASS`; cron does not use it |
+| `backup-restic/backup-restic-wrapper.sh` | **manual** runs only: re-execs itself inside tmux and prompts for `RCLONE_CONFIG_PASS`; cron does not use it |
 | `telegram.conf` | bot token + chat id, `0600`, gitignored, read via `TELEGRAM_CONF` |
 
 The three modules were separate repositories until the monorepo import; wording
@@ -120,7 +120,7 @@ ssh milos 'T=$(mktemp -d); mkdir -p "$T/x"
   "$T/x/backup-tar/backup-tar.sh" --list; rm -rf "$T"'
 ```
 
-This applies to `backup-restic-push` as well, since its `logs/.lock` is `root`-owned too.
+This applies to `backup-restic` as well, since its `logs/.lock` is `root`-owned too.
 Because the worktree is synced, uncommitted local changes are already in the
 host copy — the recipe above tests them. To compare old against new, copy the
 old version out of git on the host (`git show HEAD:<path>`) rather than out of
@@ -134,14 +134,14 @@ There is no build and no test framework. The checks are:
 bash -n <script>
 cd backup-docker-db   && shellcheck -x backup-docker-db.sh lib/db-dump-lib.sh
 cd backup-tar         && shellcheck -x backup-tar.sh lib/tar-lib.sh
-cd backup-restic-push && shellcheck -x backup-restic-push.sh backup-restic-push-wrapper.sh   # no lib/ of its own
+cd backup-restic && shellcheck -x backup-restic.sh backup-restic-wrapper.sh   # no lib/ of its own
 cd lib/runlib         && shellcheck *.sh
 shellcheck backup-wrapper.sh
 ```
 
 `shellcheck -x` resolves `source` paths relative to the **current directory** —
 running it from the parent produces false findings, and the `source=` directives
-for runlib now point one level up (`../lib/runlib/runlib.sh`). `backup-restic-push.sh` has
+for runlib now point one level up (`../lib/runlib/runlib.sh`). `backup-restic.sh` has
 2 pre-existing SC2094 infos; everything else is clean, and should stay that way.
 
 Dry checks that touch no data and write no completion marker:
@@ -149,7 +149,7 @@ Dry checks that touch no data and write no completion marker:
 ```bash
 ./backup-docker-db.sh --list
 ./backup-tar.sh --list ; ./backup-tar.sh --dry-run
-./backup-restic-push.sh --list
+./backup-restic.sh --list
 ```
 
 To silence Telegram while testing, point `TELEGRAM_CONF` at a file holding
@@ -164,14 +164,14 @@ syslog; `shanty`'s crontab is empty and there are no systemd timers).
 
 ```
 backup-docker-db  ->  /srv/backup/db-staging  ─┐
-backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic-push  ->  restic repos
+backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic  ->  restic repos
 ```
 
 Stages communicate through the filesystem plus a **completion marker**
 (`write_marker` in runlib): a temp file moved into place atomically, holding
 `completed_at`, `completed_epoch`, `host`, domain-specific keys, and
 `generator=` (`docker-db-dump`, `tar-backup`). Nothing in this repository reads
-the marker. `backup-restic-push` sets `RUN_USES_MARKER=0` and neither reads nor
+the marker. `backup-restic` sets `RUN_USES_MARKER=0` and neither reads nor
 writes one. The consumers are pull-side users outside the repo (the reason for
 `STAGING_GROUP`/`BACKUP_GROUP`), so treat the keys and `generator` value as an
 interface, not a label.

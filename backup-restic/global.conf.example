@@ -1,6 +1,6 @@
 # global.conf — host-specific global configuration
 #
-# Copy to "global.conf" and adjust. Sourced by backup-restic-push.sh based on
+# Copy to "global.conf" and adjust. Sourced by backup-restic.sh based on
 # SCRIPT_DIR (SCRIPT_DIR is available here). Holds the switches that apply to
 # the whole run; what is actually backed up is defined per object in
 # instances/<name>.conf (see instances/instances.conf.example).

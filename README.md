@@ -6,7 +6,7 @@ one library and are chained by a nightly wrapper.
 
 ```
 backup-docker-db  ->  /srv/backup/db-staging  ─┐
-backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic-push  ->  restic repos
+backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic  ->  restic repos
 ```
 
 ## Modules
@@ -15,7 +15,7 @@ backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic-push  ->
 |---|---|
 | [`backup-docker-db/`](backup-docker-db/) | Dumps the databases of Docker stacks locally (SQLite, MariaDB, MySQL, PostgreSQL) into a staging directory and writes a completion marker. Holds no backup credential. |
 | [`backup-tar/`](backup-tar/) | Writes **one compressed tar archive per configured path**, with per-path retention, checksum and verification. |
-| [`backup-restic-push/`](backup-restic-push/) | Pushes local directories — including the output of the two above — into one or more restic repositories. Any restic backend; rclone only for `rclone:` targets. |
+| [`backup-restic/`](backup-restic/) | Backs up local directories — including the output of the two above — into one or more restic repositories, local or remote. Any restic backend; rclone only for `rclone:` targets. |
 | [`lib/runlib/`](lib/runlib/) | The shared run skeleton: log file, error account, lock, `instances/*.conf` loader, summary, Telegram, completion marker, command logging. Git submodule, bound once for all modules, see below. |
 
 `backup-wrapper.sh` is the cron entry point: it runs the three scripts in the
@@ -56,8 +56,8 @@ Live configuration never enters the repository. Per module:
 |---|---|
 | `<module>/global.conf` | the whole run — from `global.conf.example` |
 | `<module>/instances/<name>.conf` | one file per backed-up object — from `instances/instances.conf.example` |
-| `backup-restic-push/repos.conf` | the restic repository list |
-| `backup-restic-push/repo.password` | restic repository password, `0600` |
+| `backup-restic/repos.conf` | the restic repository list |
+| `backup-restic/repo.password` | restic repository password, `0600` |
 | `telegram.conf` | bot token and chat id, `0600`, referenced by `TELEGRAM_CONF` |
 
 Everything ending in `.conf` is gitignored; only the `*.example` templates are
@@ -78,14 +78,14 @@ Dry checks that touch no data and write no completion marker:
 ```bash
 ./backup-docker-db/backup-docker-db.sh --list
 ./backup-tar/backup-tar.sh --list ; ./backup-tar/backup-tar.sh --dry-run
-./backup-restic-push/backup-restic-push.sh --list
+./backup-restic/backup-restic.sh --list
 ```
 
 ## Requirements
 
 bash 3.2 or newer (busybox is a target too), plus per module: `docker` and the
 database clients for `backup-docker-db`, `tar` and a compressor for
-`backup-tar`, `restic` (and optionally `rclone`) for `backup-restic-push`.
+`backup-tar`, `restic` (and optionally `rclone`) for `backup-restic`.
 
 ## Licence
 

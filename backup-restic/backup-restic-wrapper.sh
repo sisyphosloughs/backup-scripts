@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# This script is a wrapper for backup-restic-push.sh that ensures it runs within a tmux session.
+# This script is a wrapper for backup-restic.sh that ensures it runs within a tmux session.
 # tmux must be installed and available in the PATH for this script to work.
 
 set -uo pipefail
@@ -19,7 +19,7 @@ IFS= read -rs -p "Enter password: " RCLONE_CONFIG_PASS
 echo
 export RCLONE_CONFIG_PASS
 
-"$(dirname "$0")/backup-restic-push.sh"
+"$(dirname "$0")/backup-restic.sh"
 status=$?
 
 echo
