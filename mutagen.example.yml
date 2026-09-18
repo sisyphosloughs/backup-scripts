@@ -1,0 +1,23 @@
+# Template for the mutagen sync of a host worktree. Copy it to mutagen.yml
+# (gitignored) in the worktree, replace <host> with the SSH host alias, and
+# start the session with `mutagen project start`.
+sync:
+  defaults:
+    ignore:
+      vcs: true
+      paths:
+        # git state stays per side; worktree gitfiles are files, not dirs
+        - ".git"
+        # live configuration and secrets exist only on the host
+        - "*.conf"
+        - "!*.conf.example"
+        - "repo.password"
+        # root-owned run output of the cron job
+        - "logs/"
+        # sync tooling and editor noise
+        - "mutagen.yml"
+        - "mutagen.yml.lock"
+        - ".DS_Store"
+  backup-scripts-<host>:
+    alpha: "."
+    beta: "<host>:~/backup-scripts"
