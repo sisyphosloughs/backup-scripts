@@ -46,8 +46,9 @@ milos that is the code the next 01:00 cron run executes. Commit and push from
 the worktree as usual; nothing on the host needs a `git pull` for the files to
 arrive.
 
-The session is defined by the worktree's own `mutagen.yml` (gitignored; start
-with `mutagen project start`, check with `mutagen sync list`). Its ignore list
+The session is defined by the worktree's own `mutagen.yml` (gitignored; copy
+it from the versioned `mutagen.example.yml` and replace `<host>`; start with
+`mutagen project start`, check with `mutagen sync list`). Its ignore list
 matters more than it looks:
 
 - `*.conf` (except `*.conf.example`), `repo.password` and `logs/` — the host's
@@ -56,7 +57,9 @@ matters more than it looks:
 - `.git` — git state stays separate per side. mutagen's `vcs: true` only ignores
   `.git` *directories*; in a worktree `.git` and `lib/runlib/.git` are *files*,
   so without the explicit pattern they conflict with the host's.
-- `mutagen.yml*` — older sync configurations still lie around on milos.
+- `mutagen.yml`, `mutagen.yml.lock` — each side keeps its own; an older sync
+  configuration still lies around on milos. The template is not ignored and
+  reaches the host like any other versioned file.
 
 milos also holds a real git clone (remote over SSH, but milos has **no GitHub
 key**; for a pull there use
