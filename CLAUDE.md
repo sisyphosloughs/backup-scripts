@@ -32,27 +32,72 @@ to another host — has to take `lib/` along.
 
 ## The development environment is unusual — read this first
 
-There are **two separate git clones** of the same GitHub repository:
+On the development machine (macOS) there is one clone with **one git worktree
+per host**, each on its own branch and each mirrored to its host by mutagen:
 
-| Where | Path | Role |
-|---|---|---|
-| development machine (macOS) | this directory | editing, `shellcheck` |
-| host `milos` | `/home/shanty/backup-scripts` | the live copy root's cron runs |
+| Local path | Branch | Synced to | Host |
+|---|---|---|---|
+| `~/Git/backup-scripts` | `main` | — | shared rules; no sync |
+| `~/Work/backup-scripts-milos` | `host/milos` | `milos:~/backup-scripts` (= `/home/shanty/backup-scripts`) | the live copy root's cron runs |
+| `~/Work/backup-scripts-ikaria` | `host/ikaria` | `ikaria:~/backup-scripts` (= `/var/services/homes/bbruecker/backup-scripts`) | Synology NAS |
 
-Editing here does **not** change the host. Changes reach `milos` through git
-(push here, `git pull && git submodule update --init` there). No sync session is
-set up (`mutagen.yml` is gitignored in case one is created ad hoc). Before comparing
-behaviour, check that both clones are on the same commit. A fresh local clone
-has an empty `lib/runlib/` until `git submodule update --init` is run, and
-`shellcheck -x` cannot follow the runlib `source` without it.
+**Saving a file in a host worktree changes that host within seconds** — on
+milos that is the code the next 01:00 cron run executes. Commit and push from
+the worktree as usual; nothing on the host needs a `git pull` for the files to
+arrive.
+
+The session is defined by the worktree's own `mutagen.yml` (gitignored; start
+with `mutagen project start`, check with `mutagen sync list`). Its ignore list
+matters more than it looks:
+
+- `*.conf` (except `*.conf.example`), `repo.password` and `logs/` — the host's
+  live configuration, secrets and root-owned run output must neither reach the
+  Mac nor be overwritten from it.
+- `.git` — git state stays separate per side. mutagen's `vcs: true` only ignores
+  `.git` *directories*; in a worktree `.git` and `lib/runlib/.git` are *files*,
+  so without the explicit pattern they conflict with the host's.
+- `mutagen.yml*` — older sync configurations still lie around on milos.
+
+milos also holds a real git clone (remote over SSH, but milos has **no GitHub
+key**; for a pull there use
+`git -c url."https://github.com/".insteadOf=git@github.com: pull --ff-only`).
+ikaria's copy is sync-only, not a clone. Two-way-safe sync reports a differing
+file as a conflict instead of overwriting it — check `mutagen sync list` for
+conflicts after anything was changed on the host side.
+
+A fresh worktree has an empty `lib/runlib/` until `git submodule update --init`
+is run in it — and mutagen then copies that empty directory to the host, where
+no script can start. `shellcheck -x` cannot follow the runlib `source` without it
+either.
 
 **The data does not exist on the development machine.** Docker, the containers,
-`/srv/backup`, restic and the real configurations live only on `milos`. Anything
-you want to verify has to run there:
+`/srv/backup`, restic and the real configurations live only on the hosts.
+Anything you want to verify has to run there:
 
 ```bash
-ssh milos '<command>'          # BatchMode key auth is set up; no passwordless sudo
+ssh milos '<command>'          # BatchMode key auth; user shanty; no passwordless sudo
+ssh ikaria '<command>'         # BatchMode key auth; user bbruecker; no passwordless sudo
 ```
+
+The hosts differ more than the code assumes:
+
+| | milos | ikaria |
+|---|---|---|
+| System | Ubuntu 24.04 | Synology DS720+, DSM (kernel 4.4) |
+| Scheduling | root's crontab → `backup-wrapper.sh` | no `crontab` binary; DSM Task Scheduler (`synoschedtask` entries in `/etc/crontab`) |
+| bash | 5.2 | 4.4 |
+| Tools | `docker`, `restic`, `rclone` in `/usr/bin` | `docker` only at `/usr/local/bin` (Container Manager), not on a non-login `PATH`; no `restic`; `rclone` present |
+| Backup paths | `/srv/backup/...` | no `/srv` |
+
+`backup-wrapper.sh` (`/home/shanty/...`) and the template default
+`BACKUP_BASE="/srv/backup/tar"` are milos paths; neither works on ikaria as is.
+Host-specific adaptations belong on that host's `host/*` branch, shared changes
+on `main`.
+
+mutagen does not carry ownership and mode 1:1: files it creates get `0600`
+(directories `0700`), only the executable bit is transferred. The "log file is
+`chmod 644`" promise below is about files the scripts create, not the synced
+tree.
 
 Running the scripts in place on the host as `shanty` fails. The `logs/`
 directories are `shanty`-owned, but they hold `root`-owned files from cron runs,
@@ -73,8 +118,10 @@ ssh milos 'T=$(mktemp -d); mkdir -p "$T/x"
 ```
 
 This applies to `backup-restic-push` as well, since its `logs/.lock` is `root`-owned too.
-To test uncommitted local changes, copy the module and `lib/` from here into the
-temp directory (`scp -r`/`rsync`) instead of from the host clone.
+Because the worktree is synced, uncommitted local changes are already in the
+host copy — the recipe above tests them. To compare old against new, copy the
+old version out of git on the host (`git show HEAD:<path>`) rather than out of
+the synced tree.
 
 ## Checks
 
