@@ -12,6 +12,7 @@ sync:
         - "*.conf"
         - "!*.conf.example"
         - "repo.password"
+        - "backup-wrapper.sh"
         # root-owned run output of the cron job
         - "logs/"
         # sync tooling and editor noise

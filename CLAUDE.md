@@ -14,7 +14,7 @@ scripts, the library they share, and the wrapper that chains them:
 | `backup-tar/` | one compressed tar archive per configured path |
 | `backup-restic/` | backs up local directories into restic repositories, local or remote |
 | `backup-rclone-sync/` | mirrors trees with rclone: pulls a remote tree into local staging (writes a marker there, reads the source's marker first) or pushes a local tree to a cloud |
-| `backup-wrapper.sh` | the cron entry point; calls the three scripts in order by absolute `/home/shanty/backup-scripts/...` paths, with no error handling between stages |
+| `backup-wrapper.example.sh` | template for the scheduler's entry point; the live `backup-wrapper.sh` is host-local (gitignored, mutagen-ignored) and calls that host's stages in order by absolute paths, with no error handling between stages |
 | `backup-restic/backup-restic-wrapper.sh` | **manual** runs only: re-execs itself inside tmux and prompts for `RCLONE_CONFIG_PASS`; cron does not use it |
 | `telegram.conf` | bot token + chat id, `0600`, gitignored, read via `TELEGRAM_CONF` |
 
@@ -52,9 +52,9 @@ it from the versioned `mutagen.example.yml` and replace `<host>`; start with
 `mutagen project start`, check with `mutagen sync list`). Its ignore list
 matters more than it looks:
 
-- `*.conf` (except `*.conf.example`), `repo.password` and `logs/` — the host's
-  live configuration, secrets and root-owned run output must neither reach the
-  Mac nor be overwritten from it.
+- `*.conf` (except `*.conf.example`), `repo.password`, `backup-wrapper.sh` and
+  `logs/` — the host's live configuration, secrets, scheduler entry point and
+  root-owned run output must neither reach the Mac nor be overwritten from it.
 - `.git` — git state stays separate per side. mutagen's `vcs: true` only ignores
   `.git` *directories*; in a worktree `.git` and `lib/runlib/.git` are *files*,
   so without the explicit pattern they conflict with the host's.
@@ -94,10 +94,10 @@ The hosts differ more than the code assumes:
 | SSH | reachable from ikaria as `shanty` (ikaria's key is authorised); `shanty` is **not** in group `nape`, so it cannot read `/srv/backup/*` — a pull of those trees needs that group membership on milos | cannot SSH to itself; no `milos` alias in its ssh config (use the full hostname from `ssh -G milos` on the Mac) |
 | Backup paths | `/srv/backup/...` | no `/srv` |
 
-`backup-wrapper.sh` (`/home/shanty/...`) and the template default
-`BACKUP_BASE="/srv/backup/tar"` are milos paths; neither works on ikaria as is.
-Host-specific adaptations belong on that host's `host/*` branch, shared changes
-on `main`.
+The template default `BACKUP_BASE="/srv/backup/tar"` is a milos path and does
+not work on ikaria as is. Host-specific adaptations belong on that host's
+`host/*` branch, shared changes on `main`; the wrapper itself is not versioned
+at all (see the table above).
 
 mutagen does not carry ownership and mode 1:1: files it creates get `0600`
 (directories `0700`), only the executable bit is transferred. The "log file is
@@ -139,7 +139,7 @@ cd backup-tar         && shellcheck -x backup-tar.sh lib/tar-lib.sh
 cd backup-restic && shellcheck -x backup-restic.sh backup-restic-wrapper.sh   # no lib/ of its own
 cd backup-rclone-sync && shellcheck -x backup-rclone-sync.sh lib/rclone-sync-lib.sh
 cd lib/runlib         && shellcheck *.sh
-shellcheck backup-wrapper.sh
+shellcheck backup-wrapper.example.sh
 ```
 
 `shellcheck -x` resolves `source` paths relative to the **current directory** —

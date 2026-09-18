@@ -14,6 +14,8 @@
 # The templates are not *.conf and stay versioned; listed for clarity.
 !*.conf.example
 repo.password
+# The scheduler entry point is host-local too: copy backup-wrapper.example.sh.
+backup-wrapper.sh
 
 # Runtime logs (each script creates its own logs/ via log_init)
 logs/

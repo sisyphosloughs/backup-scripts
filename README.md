@@ -22,8 +22,9 @@ backup-tar        ->  /srv/backup/tar         ─┴─>  backup-restic  ->  res
 | [`backup-rclone-sync/`](backup-rclone-sync/) | Mirrors trees with rclone, one per instance: pulls another host's staging or tar tree into a local staging directory (and writes a completion marker there), or pushes a local tree to a cloud. Refuses a source whose completion marker is missing or stale; caps deletions. |
 | [`lib/runlib/`](lib/runlib/) | The shared run skeleton: log file, error account, lock, `instances/*.conf` loader, summary, Telegram, completion marker, command logging. Git submodule, bound once for all modules, see below. |
 
-`backup-wrapper.sh` is the cron entry point: it runs the three scripts in the
-order above, once per night.
+`backup-wrapper.sh` is the scheduler's entry point: a host-local copy of
+`backup-wrapper.example.sh` (gitignored, not synced) that runs this host's
+stages in order, once per night.
 
 Each module keeps its own domain library next to its script — 
 `backup-docker-db/lib/db-dump-lib.sh` (engines, container detection, dump
