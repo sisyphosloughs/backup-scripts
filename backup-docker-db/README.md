@@ -139,7 +139,7 @@ in the reference repository:
 | `DUMP_UMASK` | `0027` | umask for the dumps (→ files `0640`). |
 | `DOCKER_STOP_TIMEOUT` | `20` | Timeout for `docker compose stop`; only relevant with `STOP_SERVICES`. |
 | `EXTRA_PATH` | empty | Directories prepended to `PATH` (cron has a minimal one). |
-| `TELEGRAM_CONF` | empty | Path to the file holding `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` for the whole host (0600, outside every repo). Setting the two directly in `global.conf` still wins; leaving both unset disables notifications. |
+| `TELEGRAM_CONF` | empty | Path to the file holding `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` for the whole host (0600; in this collection `telegram.conf` in the root directory, from `telegram.conf.example`). Setting the two directly in `global.conf` still wins; leaving both unset disables notifications. |
 
 ### `instances/<name>.conf` — one file per database
 
@@ -345,16 +345,22 @@ which script produced it.
 ## Telegram credentials
 
 The token and chat id live in **one file for the whole host**, not once per
-script, so rotating them is a single edit. Point `TELEGRAM_CONF` in
-`global.conf` at it:
+script, so rotating them is a single edit: `telegram.conf` in the root of the
+collection, next to the module directories, created from
+`telegram.conf.example` there. It is gitignored and not synced like every other
+`*.conf`, and it stays inside the tree on purpose — the other secrets of the
+collection (`repo.password`, the `global.conf` files) are there as well, so one
+place holds everything a host has to protect. Point `TELEGRAM_CONF` in
+`global.conf` at it; `ROOT_DIR` is the collection root, which the script sets
+before it sources `global.conf`:
 
 ```bash
 # global.conf
-TELEGRAM_CONF="/etc/runlib/telegram.conf"
+TELEGRAM_CONF="$ROOT_DIR/telegram.conf"
 ```
 
 ```bash
-# /etc/runlib/telegram.conf   —   chmod 600, outside every repository
+# <collection root>/telegram.conf   —   from telegram.conf.example, chmod 600
 TELEGRAM_BOT_TOKEN="123456:AA..."
 TELEGRAM_CHAT_ID="987654"
 ```

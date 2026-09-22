@@ -16,7 +16,7 @@ scripts, the library they share, and the wrapper that chains them:
 | `backup-rclone-sync/` | mirrors trees with rclone: pulls a remote tree into local staging (writes a marker there, reads the source's marker first) or pushes a local tree to a cloud |
 | `backup-wrapper.example.sh` | template for the scheduler's entry point; the live `backup-wrapper.sh` is host-local (gitignored, mutagen-ignored) and calls that host's stages in order by absolute paths, with no error handling between stages |
 | `backup-restic/backup-restic-wrapper.sh` | **manual** runs only: re-execs itself inside tmux and prompts for `RCLONE_CONFIG_PASS`; cron does not use it |
-| `telegram.conf` | bot token + chat id, `0600`, gitignored, read via `TELEGRAM_CONF` |
+| `telegram.conf` | bot token + chat id for the whole host, `0600`, in the collection root next to the modules (from `telegram.conf.example`); gitignored and not synced like every `*.conf`, read via `TELEGRAM_CONF` in each `global.conf` |
 
 The three modules were separate repositories until the monorepo import; wording
 that still says “this repo” in a module README means the module.

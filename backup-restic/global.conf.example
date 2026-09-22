@@ -52,8 +52,9 @@ RESTIC_PASSWORD_FILE="$SCRIPT_DIR/repo.password"
 # Telegram notification.
 #
 # The credentials live in ONE file for the whole host, so a token rotation is a
-# single edit instead of one per script. Create it with 0600 permissions,
-# outside every repository:
+# single edit instead of one per script: telegram.conf in the root of this
+# collection, created from telegram.conf.example there, 0600. Like every
+# *.conf it is gitignored and not synced. It holds nothing but:
 #
 #   TELEGRAM_BOT_TOKEN="123456:AA..."
 #   TELEGRAM_CHAT_ID="987654"
@@ -61,7 +62,8 @@ RESTIC_PASSWORD_FILE="$SCRIPT_DIR/repo.password"
 # Leave both at "xxx" (or leave TELEGRAM_CONF empty) to disable notifications.
 # Setting TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID directly here still wins, so a
 # single script can override the shared file.
-TELEGRAM_CONF="/etc/runlib/telegram.conf"
+# $ROOT_DIR is the collection root; the script sets it before sourcing this file.
+TELEGRAM_CONF="$ROOT_DIR/telegram.conf"
 
 # Log retention (days)
 LOG_RETENTION_DAYS=64

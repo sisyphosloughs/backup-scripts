@@ -1,0 +1,17 @@
+# telegram.conf.example — template for telegram.conf, the Telegram credentials
+# shared by every backup script on this host.
+#
+# Copy it to telegram.conf in the root of this collection (next to the module
+# directories), fill in both values and make it 0600. Each module's global.conf
+# points at it via TELEGRAM_CONF; lib/runlib/notify.sh sources it, so it must
+# contain nothing but these two assignments.
+#
+# telegram.conf is gitignored and not synced, like every other *.conf. It lives
+# inside the tree on purpose: the other secrets of this collection
+# (repo.password, global.conf) are here as well, so one place holds everything
+# a host has to protect.
+#
+# Leave both at "xxx" (or leave TELEGRAM_CONF empty in global.conf) to switch
+# notifications off everywhere without a code change.
+TELEGRAM_BOT_TOKEN="xxx"
+TELEGRAM_CHAT_ID="xxx"

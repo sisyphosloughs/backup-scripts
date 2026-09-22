@@ -526,16 +526,22 @@ EXCLUDES=(
 ## Telegram credentials
 
 The token and chat id live in **one file for the whole host**, not once per
-script, so rotating them is a single edit. Point `TELEGRAM_CONF` in
-`global.conf` at it:
+script, so rotating them is a single edit: `telegram.conf` in the root of the
+collection, next to the module directories, created from
+`telegram.conf.example` there. It is gitignored and not synced like every other
+`*.conf`, and it stays inside the tree on purpose — the other secrets of the
+collection (`repo.password`, the `global.conf` files) are there as well, so one
+place holds everything a host has to protect. Point `TELEGRAM_CONF` in
+`global.conf` at it; `ROOT_DIR` is the collection root, which the script sets
+before it sources `global.conf`:
 
 ```bash
 # global.conf
-TELEGRAM_CONF="/etc/runlib/telegram.conf"
+TELEGRAM_CONF="$ROOT_DIR/telegram.conf"
 ```
 
 ```bash
-# /etc/runlib/telegram.conf   —   chmod 600, outside every repository
+# <collection root>/telegram.conf   —   from telegram.conf.example, chmod 600
 TELEGRAM_BOT_TOKEN="123456:AA..."
 TELEGRAM_CHAT_ID="987654"
 ```

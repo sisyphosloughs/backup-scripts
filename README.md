@@ -63,11 +63,21 @@ Live configuration never enters the repository. Per module:
 | `<module>/instances/<name>.conf` | one file per backed-up object — from `instances/instances.conf.example` |
 | `backup-restic/repos.conf` | the restic repository list |
 | `backup-restic/repo.password` | restic repository password, `0600` |
-| `telegram.conf` | bot token and chat id, `0600`, referenced by `TELEGRAM_CONF` |
+| `telegram.conf` | bot token and chat id for the whole host, `0600`, in the root of the collection — from `telegram.conf.example`, referenced by `TELEGRAM_CONF` in every `global.conf` |
 
 Everything ending in `.conf` is gitignored; only the `*.example` templates are
-versioned. Set `TELEGRAM_CONF` to a file holding `xxx` values to silence
-notifications without a code change.
+versioned.
+
+The Telegram credentials are one file per host, not one per module, so
+rotating the token is a single edit. That file is `telegram.conf` in the root
+of the collection, next to the module directories. It stays inside the tree
+deliberately: the other secrets (`repo.password`, the `global.conf` files) live
+here as well, so one place holds everything a host has to protect, and the
+`*.conf` rule keeps it out of git and out of the sync. Each module's
+`global.conf` points at it with `TELEGRAM_CONF="$ROOT_DIR/telegram.conf"`,
+where `ROOT_DIR` is the collection root the script sets before it sources
+`global.conf`. Leaving both values at `xxx` silences notifications without a
+code change.
 
 ## Checks
 
