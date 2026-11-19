@@ -1,0 +1,98 @@
+# instances/<account>.conf — one file per Nextcloud account
+#
+# Copy this template to instances/<account>.conf (e.g. instances/bbruecker.conf)
+# and adjust. Both scripts of this module collect every "*.conf" in this
+# directory; this ".example" file is ignored. Adding an account therefore never
+# requires a change to a script.
+#
+# The FILE NAME (without ".conf") is the account's name. It is
+#   - the label in the log and in the Telegram summary,
+#   - the sub-directory under STAGING_BASE its export lands in,
+#   - and the default for DAV_USER and STANDBY_USER.
+#
+# Each file is sourced on its own with all variables below reset to their
+# defaults, so values never leak between accounts. Leave a variable out to get
+# the default.
+#
+# Adding an account is done by hand, in three places:
+#   1. the account's owner creates an app password (Nextcloud: Personal
+#      settings -> Security -> Devices & sessions). Admin rights do NOT give
+#      access to another account's calendars, so every account needs its own;
+#   2. a netrc for it (see NETRC_FILE below);
+#   3. a Baïkal principal of the same name, if STANDBY is true.
+
+# ---------------------------------------------------------------------------
+# Where (REQUIRED)
+# ---------------------------------------------------------------------------
+
+# The DAV root of the Nextcloud instance, without a trailing slash. The script
+# appends calendars/<user>/ and addressbooks/users/<user>/.
+DAV_URL="https://<instance>.your-storageshare.de/remote.php/dav"
+
+# The Nextcloud user name (the login, not the display name). Default: the file
+# name.
+# DAV_USER="bbruecker"
+
+# ---------------------------------------------------------------------------
+# Credentials (REQUIRED)
+#
+# A netrc file, mode 0600, owned by the user the scripts run as (root). The
+# scripts refuse a file that group or others can read. It holds TWO lines —
+# curl picks the one whose host matches the request:
+#
+#   machine <instance>.your-storageshare.de login bbruecker password <nextcloud-app-password>
+#   machine 192.168.223.2 login bbruecker password <baikal-password>
+#
+# "machine" takes the bare host name — no "https://", no port, no path; curl
+# compares it with the host of the URL character by character. The second
+# line must name the host of BAIKAL_URL exactly — the IP. Passwords
+# never go on a command line: there they would show up in "ps".
+#
+# The secrets/ directory and *.netrc are gitignored and excluded from the
+# mutagen sync.
+# ---------------------------------------------------------------------------
+NETRC_FILE="/volume1/scripts/backup-scripts/backup-dav/secrets/bbruecker.netrc"
+
+# ---------------------------------------------------------------------------
+# What is exported
+#
+# Every calendar (events and tasks) and every address book in the account's
+# homes, except, each logged with its reason: the scheduling inbox/outbox, the
+# trash bin, subscriptions, the generated birthday calendar, Deck board
+# calendars and the generated "recently contacted" address book.
+# ---------------------------------------------------------------------------
+
+# Collections other accounts shared WITH this one ("…_shared_by_…"). They are
+# backed up in their owner's account; include them here only if that owner is
+# not backed up.
+INCLUDE_SHARED=false
+
+# Glob patterns on the collection URI (the last part of its URL, e.g.
+# "personal", not its display name) to leave out.
+EXCLUDE_COLLECTIONS=()
+# EXCLUDE_COLLECTIONS=( "old-*" "test" )
+
+# Skip this account without deleting its configuration (default true).
+# ENABLED=false
+
+# ---------------------------------------------------------------------------
+# Trend guard
+# ---------------------------------------------------------------------------
+
+# Overrides the global MAX_SHRINK_PERCENT for this account.
+# MAX_SHRINK_PERCENT=20
+
+# One-off override after a deliberate cleanup: lets a shrunk or vanished
+# collection through. Every run warns while it is set — remove it again after
+# the run that was meant to pass.
+ACCEPT_SHRINK=false
+
+# ---------------------------------------------------------------------------
+# Standby (read by backup-dav-standby.sh)
+# ---------------------------------------------------------------------------
+
+# Mirror this account into Baïkal (default true).
+STANDBY=true
+
+# The Baïkal principal. Default: DAV_USER.
+# STANDBY_USER="bbruecker"

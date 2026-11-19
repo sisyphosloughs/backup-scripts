@@ -1,0 +1,129 @@
+# global.conf — host-specific global configuration for backup-dav.sh and
+# backup-dav-standby.sh
+#
+# Copy to "global.conf" and adjust. Sourced by both scripts based on
+# SCRIPT_DIR (SCRIPT_DIR and ROOT_DIR are available here). Holds the switches
+# that apply to the whole run; WHICH accounts are handled is defined per
+# account in instances/<account>.conf (see instances/instances.conf.example).
+#
+# Everything below that is also a per-account setting is the DEFAULT here: an
+# instances/<account>.conf may override it for its own account.
+#
+# The paths are examples for ikaria (Synology DSM). This file holds no secret
+# of its own — the passwords live in one netrc per account — but keep it 0600
+# like every live configuration.
+
+# ---------------------------------------------------------------------------
+# Dry run
+# ---------------------------------------------------------------------------
+
+# Dry run (default OFF). When "true", the export discovers the collections of
+# every account and counts their objects on the server — so the log shows what
+# WOULD be exported, and which collections are skipped and why — but downloads
+# nothing, leaves the staging directory as it is and touches no marker. Useful
+# to check a new account (URL, app password, filters) before its first real
+# run. "--dry-run" on the command line does the same for one run.
+DRY_RUN=false
+# DRY_RUN=true
+
+# ---------------------------------------------------------------------------
+# curl
+# ---------------------------------------------------------------------------
+
+# curl binary. Leave at "curl" to use whatever is found in PATH; set the
+# absolute path where the scheduler's PATH does not reach it. The availability
+# is checked and logged at startup.
+CURL_BIN="curl"
+# CURL_BIN="/usr/bin/curl"
+
+# Seconds until a connection must stand, and seconds one request may take in
+# all. An address book with many photos is the slow case.
+CURL_CONNECT_TIMEOUT=20
+CURL_MAX_TIME=600
+
+# ---------------------------------------------------------------------------
+# Staging: where the exports land
+#
+# One directory per account below it: "<STAGING_BASE>/<account>/", holding
+# calendars/<uri>.ics, addressbooks/<uri>.vcf, manifest.tsv and the
+# completion marker. backup-restic backs it up (it lies inside a BACKUP_PATH
+# there), backup-dav-standby.sh reads it.
+# ---------------------------------------------------------------------------
+
+STAGING_BASE="/volume1/backup/staging/nextcloud-dav"
+
+# Directory holding the per-account configurations (default: instances/ next
+# to the scripts). Rarely worth changing.
+# INSTANCES_DIR="$SCRIPT_DIR/instances"
+
+# Name of the completion marker written into every account's staging
+# directory after an error-free export. This is the contract with whatever
+# consumes the export — the standby, a monitoring check, a pull from another
+# host. Its keys (generator=dav-export, account, server, collections, objects,
+# vevents, vtodos, cards, bytes) are an interface. Set to "" to disable.
+MARKER_NAME=".complete"
+
+# The exports hold private appointments and contacts: directories 0750, files
+# 0640 (STAGING_UMASK), readable beyond root only for STAGING_GROUP.
+STAGING_MODE="0750"
+STAGING_GROUP=""
+STAGING_UMASK="0027"
+
+# ---------------------------------------------------------------------------
+# Safety
+# ---------------------------------------------------------------------------
+
+# Trend guard: an account fails — and keeps its previous export — when one of
+# its collections lost MORE than this percentage of its objects since the last
+# export, or vanished while it held objects. 0 = any loss fails, 100 = off.
+# A deliberate cleanup is let through once with ACCEPT_SHRINK=true in the
+# account's configuration.
+MAX_SHRINK_PERCENT=20
+
+# ---------------------------------------------------------------------------
+# Standby (read by backup-dav-standby.sh only)
+#
+# Baïkal on this host, LAN only. The scripts use the IP, not a name, so they do
+# not depend on the router's DNS; host and port are taken from here and from
+# nowhere else. Plain HTTP within the LAN, Digest auth.
+# ---------------------------------------------------------------------------
+
+BAIKAL_URL="http://192.168.223.2:9976/dav.php"
+BAIKAL_AUTH="digest"
+
+# The staging marker must be younger than this, or the standby is left as it
+# is: a failed export must not be mirrored.
+MARKER_MAX_AGE_HOURS=26
+
+# Deletions per collection and run, above which a collection fails before
+# anything is deleted.
+MAX_DELETE=50
+
+# While this file exists the standby sync refuses to run (and reports that as
+# an error every night): clients are working on Baïkal. See baikal/README.md.
+STANDBY_FREEZE_FILE="/volume1/baikal/FROZEN"
+
+# Restore test (backup-dav-standby.sh --restore-test): restores the staging
+# from the restic repository backup-restic writes it into. Neither the
+# repository nor the password is put on a command line.
+RESTIC_BIN="/usr/local/bin/restic"
+RESTIC_REPOSITORY=""
+RESTIC_PASSWORD_FILE=""
+RESTORE_TEST_PRINCIPAL="restore-test"
+SELFTEST_PRINCIPAL="selftest"
+
+# ---------------------------------------------------------------------------
+# Logging and notification
+# ---------------------------------------------------------------------------
+
+# Log retention (days). The scripts rotate their own logs, no logrotate needed.
+LOG_RETENTION_DAYS=64
+
+# Telegram notification.
+#
+# The credentials live in ONE file for the whole host: telegram.conf in the
+# root of this collection, created from telegram.conf.example there, 0600.
+# Like every *.conf it is gitignored and not synced. Leave its values at "xxx"
+# (or leave TELEGRAM_CONF empty) to disable notifications.
+# $ROOT_DIR is the collection root; the scripts set it before sourcing this file.
+TELEGRAM_CONF="$ROOT_DIR/telegram.conf"

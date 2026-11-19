@@ -14,6 +14,9 @@
 # The templates are not *.conf and stay versioned; listed for clarity.
 !*.conf.example
 repo.password
+# backup-dav: one netrc per account (Nextcloud app password, Baïkal password).
+*.netrc
+secrets/
 # The scheduler entry point is host-local too: copy backup-wrapper.example.sh.
 backup-wrapper.sh
 
