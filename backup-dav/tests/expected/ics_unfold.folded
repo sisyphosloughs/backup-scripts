@@ -1,0 +1,17 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Sabre//Sabre VObject 4.5.6//EN
+BEGIN:VEVENT
+UID:folded-uid-that-is-very-long-and-continues-on-the-next-line-0123456789-abcdef@example.org
+DTSTAMP:20261101T090000Z
+DTSTART:20261110T090000Z
+SUMMARY:Folded
+DESCRIPTION:This description is long enough that a conforming writer folds it at 75 octets\, and the continuation line starts with a single space or a tab.
+END:VEVENT
+BEGIN:VTODO
+UID:folded-todo
+DTSTAMP:20261101T090000Z
+SUMMARY:Plain
+END:VTODO
+END:VCALENDAR
+rc=0

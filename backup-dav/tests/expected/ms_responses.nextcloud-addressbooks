@@ -1,0 +1,4 @@
+/remote.php/dav/addressbooks/users/alice/	collection	-	-	-	-
+/remote.php/dav/addressbooks/users/alice/contacts/	collection,addressbook	Kontakte	-	http://sabre.io/ns/sync/230	-
+/remote.php/dav/addressbooks/users/alice/z-app-generated--contactsinteraction--recent/	collection,addressbook	Kürzlich kontaktiert	-	-	-
+rc=0

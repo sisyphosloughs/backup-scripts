@@ -1,0 +1,25 @@
+BEGIN:VCARD
+VERSION:3.0
+PRODID:-//Sabre//Sabre VObject 4.5.6//EN
+UID:card-alice
+FN:Alice Example
+N:Example;Alice;;;
+item1.EMAIL;TYPE=INTERNET:alice@example.org
+item1.X-ABLabel:Work
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+PRODID:-//Sabre//Sabre VObject 4.5.6//EN
+UID:urn:uuid:0b6f3d3c-2a7e-4b0f-9c59-1f3e5b7c9d11
+FN:Bob Example
+N:Example;Bob;;;
+TEL;TYPE="voice,cell";VALUE=uri:tel:+49-30-1234567
+PHOTO;ENCODING=b;TYPE=PNG:iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADU
+ lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==iVBORw0KGgoAAAANSUhEUgAAAAEA
+ AAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+UID:card-carol/with/slashes
+FN:Carol Example
+END:VCARD

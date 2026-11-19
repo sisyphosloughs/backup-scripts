@@ -1,0 +1,5 @@
+https://example.your-storageshare.de/remote.php/dav | https://example.your-storageshare.de | example.your-storageshare.de | /remote.php/dav
+http://192.168.223.2:9976/dav.php | http://192.168.223.2:9976 | 192.168.223.2 | /dav.php
+https://user@host.example:8443/ | https://user@host.example:8443 | host.example | /
+https://host.example | https://host.example | host.example | /
+rc=0

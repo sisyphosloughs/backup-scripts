@@ -1,0 +1,5 @@
+# kind	uri	displayname	server_count	objects	vevents	vtodos	cards	bytes
+calendar	personal	Persönlich	80	80	72	8	0	40000
+calendar	tasks	Aufgaben	25	25	0	25	0	9000
+addressbook	contacts	Kontakte	200	200	0	0	200	400000
+calendar	new-one	Neu	3	3	3	0	0	900

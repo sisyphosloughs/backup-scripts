@@ -1,0 +1,30 @@
+objects=3
+=== 516836eac25a0d71b7f84ff49fb578d3.vcf
+BEGIN:VCARD<CR>
+VERSION:4.0<CR>
+PRODID:-//Sabre//Sabre VObject 4.5.6//EN<CR>
+UID:urn:uuid:0b6f3d3c-2a7e-4b0f-9c59-1f3e5b7c9d11<CR>
+FN:Bob Example<CR>
+N:Example;Bob;;;<CR>
+TEL;TYPE="voice,cell";VALUE=uri:tel:+49-30-1234567<CR>
+PHOTO;ENCODING=b;TYPE=PNG:iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADU<CR>
+ lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==iVBORw0KGgoAAAANSUhEUgAAAAEA<CR>
+ AAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==<CR>
+END:VCARD<CR>
+=== cfe7d0e894665f7425822091dfed86e2.vcf
+BEGIN:VCARD<CR>
+VERSION:3.0<CR>
+PRODID:-//Sabre//Sabre VObject 4.5.6//EN<CR>
+UID:card-alice<CR>
+FN:Alice Example<CR>
+N:Example;Alice;;;<CR>
+item1.EMAIL;TYPE=INTERNET:alice@example.org<CR>
+item1.X-ABLabel:Work<CR>
+END:VCARD<CR>
+=== e0e4c2fc60b5c2da377d757434bc862a.vcf
+BEGIN:VCARD<CR>
+VERSION:3.0<CR>
+UID:card-carol/with/slashes<CR>
+FN:Carol Example<CR>
+END:VCARD<CR>
+rc=0

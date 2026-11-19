@@ -1,0 +1,4 @@
+# The fixtures carry CRLF line endings on purpose (a real export does), and
+# the expected outputs compare them byte for byte: never let git convert them.
+fixtures/** -text
+expected/** -text

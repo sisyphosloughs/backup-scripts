@@ -1,0 +1,12 @@
+alice	skip	not a calendar (resourcetype collection)
+personal	keep	Persönlich & privat
+tasks	keep	Aufgaben
+contact_birthdays	skip	generated birthday calendar
+app-generated--deck--board-7	skip	Deck board calendar
+team_shared_by_bob	skip	shared with this account (INCLUDE_SHARED=false)
+holidays	skip	subscription (read-only copy of an external calendar)
+old-project	keep	-
+inbox	skip	scheduling inbox
+outbox	skip	scheduling outbox
+trashbin	skip	trash bin
+rc=0

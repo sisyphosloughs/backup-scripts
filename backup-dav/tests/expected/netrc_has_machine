@@ -1,0 +1,4 @@
+a.example yes
+192.168.223.2 yes
+b.example no
+rc=0

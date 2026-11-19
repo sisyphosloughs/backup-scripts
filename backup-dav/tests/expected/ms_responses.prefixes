@@ -1,0 +1,4 @@
+/dav/calendars/alice/	collection	-	-	-	-
+/dav/calendars/alice/work/	collection,calendar	Work	-	-	VEVENT
+/dav/calendars/alice/upper/	collection,calendar	Upper case <prefix>	-	-	-
+rc=0

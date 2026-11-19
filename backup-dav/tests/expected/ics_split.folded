@@ -1,0 +1,27 @@
+objects=2
+=== 03660fb6aa86f14039a870edb640329f.ics
+BEGIN:VCALENDAR<CR>
+VERSION:2.0<CR>
+PRODID:-//Sabre//Sabre VObject 4.5.6//EN<CR>
+BEGIN:VTODO<CR>
+UID:folded-todo<CR>
+DTSTAMP:20261101T090000Z<CR>
+SUMMARY:Plain<CR>
+END:VTODO<CR>
+END:VCALENDAR<CR>
+=== 31af3faf61b9083efae05fe371966dd8.ics
+BEGIN:VCALENDAR<CR>
+VERSION:2.0<CR>
+PRODID:-//Sabre//Sabre VObject 4.5.6//EN<CR>
+BEGIN:VEVENT<CR>
+UID:folded-uid-that-is-very-long-and-continues-on-the-next-line-0123456789<CR>
+ -abcdef@example.org<CR>
+DTSTAMP:20261101T090000Z<CR>
+DTSTART:20261110T090000Z<CR>
+SUMMARY:Folded<CR>
+DESCRIPTION:This description is long enough that a conforming writer fold<CR>
+ s it at 75 octets\, and the continuation line starts with a single spac<CR>
+	e or a tab.<CR>
+END:VEVENT<CR>
+END:VCALENDAR<CR>
+rc=0

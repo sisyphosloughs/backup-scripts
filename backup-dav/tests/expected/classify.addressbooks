@@ -1,0 +1,4 @@
+alice	skip	not an address book (resourcetype collection)
+contacts	keep	Kontakte
+z-app-generated--contactsinteraction--recent	skip	generated "recently contacted" address book
+rc=0

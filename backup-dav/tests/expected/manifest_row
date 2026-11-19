@@ -1,0 +1,4 @@
+# kind	uri	displayname	server_count	objects	vevents	vtodos	cards	bytes
+calendar	personal	Name with tab	3	3	2	1	0	999
+addressbook	contacts	-	0	0	0	0	0	0
+rc=0

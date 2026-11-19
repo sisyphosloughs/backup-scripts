@@ -1,0 +1,12 @@
+/remote.php/dav/calendars/alice/	collection	-	-	-	-
+/remote.php/dav/calendars/alice/personal/	collection,calendar	Persönlich & privat	-	http://sabre.io/ns/sync/4711	VEVENT,VTODO
+/remote.php/dav/calendars/alice/tasks/	collection,calendar	Aufgaben	-	http://sabre.io/ns/sync/12	VTODO
+/remote.php/dav/calendars/alice/contact_birthdays/	collection,calendar	Geburtstage von Kontakten	-	http://sabre.io/ns/sync/3	VEVENT
+/remote.php/dav/calendars/alice/app-generated--deck--board-7/	collection,calendar	Deck: Haushalt	-	-	VTODO
+/remote.php/dav/calendars/alice/team_shared_by_bob/	collection,calendar,shared	Team (Bob)	-	http://sabre.io/ns/sync/99	VEVENT
+/remote.php/dav/calendars/alice/holidays/	collection,subscribed	Feiertage	-	-	-
+/remote.php/dav/calendars/alice/old-project/	collection,calendar	-	-	http://sabre.io/ns/sync/1	VEVENT
+/remote.php/dav/calendars/alice/inbox/	collection,schedule-inbox	-	-	-	-
+/remote.php/dav/calendars/alice/outbox/	collection,schedule-outbox	-	-	-	-
+/remote.php/dav/calendars/alice/trashbin/	collection,trash-bin	-	-	-	-
+rc=0

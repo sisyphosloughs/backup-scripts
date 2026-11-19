@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/></d:resourcetype>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+  <d:propstat>
+   <d:prop>
+    <d:displayname/>
+    <cs:getctag/>
+    <cal:supported-calendar-component-set/>
+   </d:prop>
+   <d:status>HTTP/1.1 404 Not Found</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/personal/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+    <d:displayname>Persönlich &amp; privat</d:displayname>
+    <cs:getctag>http://sabre.io/ns/sync/4711</cs:getctag>
+    <cal:supported-calendar-component-set><cal:comp name="VEVENT"/><cal:comp name="VTODO"/></cal:supported-calendar-component-set>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/tasks/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+    <d:displayname>Aufgaben</d:displayname>
+    <cs:getctag>http://sabre.io/ns/sync/12</cs:getctag>
+    <cal:supported-calendar-component-set><cal:comp name="VTODO"/></cal:supported-calendar-component-set>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/contact_birthdays/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+    <d:displayname>Geburtstage von Kontakten</d:displayname>
+    <cs:getctag>http://sabre.io/ns/sync/3</cs:getctag>
+    <cal:supported-calendar-component-set><cal:comp name="VEVENT"/></cal:supported-calendar-component-set>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/app-generated--deck--board-7/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+    <d:displayname>Deck: Haushalt</d:displayname>
+    <cal:supported-calendar-component-set><cal:comp name="VTODO"/></cal:supported-calendar-component-set>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+  <d:propstat>
+   <d:prop>
+    <cs:getctag/>
+   </d:prop>
+   <d:status>HTTP/1.1 404 Not Found</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/team_shared_by_bob/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/><cal:calendar/><cs:shared/></d:resourcetype>
+    <d:displayname>Team (Bob)</d:displayname>
+    <cs:getctag>http://sabre.io/ns/sync/99</cs:getctag>
+    <cal:supported-calendar-component-set><cal:comp name="VEVENT"/></cal:supported-calendar-component-set>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/holidays/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/><cs:subscribed/></d:resourcetype>
+    <d:displayname>Feiertage</d:displayname>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/old-project/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+    <d:displayname></d:displayname>
+    <cs:getctag>http://sabre.io/ns/sync/1</cs:getctag>
+    <cal:supported-calendar-component-set><cal:comp name="VEVENT"/></cal:supported-calendar-component-set>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/inbox/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/><cal:schedule-inbox/></d:resourcetype>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/outbox/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/><cal:schedule-outbox/></d:resourcetype>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/remote.php/dav/calendars/alice/trashbin/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype><d:collection/><nc:trash-bin/></d:resourcetype>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+</d:multistatus>
