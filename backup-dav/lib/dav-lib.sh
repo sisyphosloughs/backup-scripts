@@ -622,17 +622,20 @@ dav_bad_text() {
 
 _DAV_MD5_TOOL=""
 
-dav_md5() {
-  # dav_md5 [file] — the md5 of a file (stdin if none) as 32 hex digits. The
-  # tool differs between DSM and busybox (md5sum) and macOS (md5), so it is
-  # looked up once.
-  if [[ -z "$_DAV_MD5_TOOL" ]]; then
-    if command -v md5sum >/dev/null 2>&1; then _DAV_MD5_TOOL="md5sum"
-    elif command -v md5 >/dev/null 2>&1; then _DAV_MD5_TOOL="md5"
-    elif command -v openssl >/dev/null 2>&1; then _DAV_MD5_TOOL="openssl"
-    else log ERROR "dav_md5: neither md5sum, md5 nor openssl found"; return 1
-    fi
+_dav_md5_tool() {
+  # Sets _DAV_MD5_TOOL: the md5 tool differs between DSM and busybox (md5sum)
+  # and macOS (md5).
+  [[ -n "$_DAV_MD5_TOOL" ]] && return 0
+  if command -v md5sum >/dev/null 2>&1; then _DAV_MD5_TOOL="md5sum"
+  elif command -v md5 >/dev/null 2>&1; then _DAV_MD5_TOOL="md5"
+  elif command -v openssl >/dev/null 2>&1; then _DAV_MD5_TOOL="openssl"
+  else log ERROR "dav_md5: neither md5sum, md5 nor openssl found"; return 1
   fi
+}
+
+dav_md5() {
+  # dav_md5 [file] — the md5 of a file (stdin if none) as 32 hex digits.
+  _dav_md5_tool || return 1
   case "$_DAV_MD5_TOOL" in
     md5sum)  md5sum "$@" | awk '{ print $1 }' ;;
     md5)     if [[ $# -gt 0 ]]; then md5 -q "$1"; else md5 -q; fi ;;
@@ -682,6 +685,281 @@ vcf_split() {
   n="$(awk -v MODE=split -v OUT="$dir" "$_DAV_VCF_AWK" "$file")" || return 1
   _dav_split_rename "$dir" vcf || return 1
   printf '%s\n' "$n"
+}
+
+dav_object_uid() {
+  # dav_object_uid <file> — the UID of one split object, for a log line: the
+  # UID of the VEVENT/VTODO (depth 2 in a VCALENDAR) or of the VCARD (depth 1),
+  # never that of a VALARM. Prints nothing if there is none.
+  ics_unfold "$1" | awk '
+    { nm = $0; sub(/[;:].*$/, "", nm); nm = toupper(nm); v = substr($0, index($0, ":") + 1) }
+    nm == "BEGIN" { d++; if (d == 1) top = toupper(v); next }
+    nm == "END"   { d--; next }
+    nm == "UID" && d == (top == "VCALENDAR" ? 2 : 1) { print v; exit }
+  '
+}
+
+# ---------------------------------------------------------------------------
+# Writing to the standby
+#
+# The standby holds every object under the name ics_split/vcf_split gave it,
+# "<uid_name>.<ext>". Baïkal stores what it is sent byte for byte and uses the
+# md5 of the stored data as the etag (verified with 0.13.0), so "the etag
+# differs from the md5 of the split object" is exactly "the object changed" —
+# an unchanged object is not sent again.
+# ---------------------------------------------------------------------------
+
+dav_xml_escape() {
+  # dav_xml_escape — stdin to stdout, with &, < and > escaped for an XML text
+  # node.
+  sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+}
+
+dav_mkcollection() {
+  # dav_mkcollection <kind> <url> <netrc> <displayname> <out-file>
+  #
+  # Creates a calendar (MKCALENDAR) or an address book (extended MKCOL, RFC
+  # 5689) at <url>, with its display name ("-" or "" for none). A calendar
+  # accepts events, tasks and journals, so nothing the export holds is refused
+  # for its component type. Stdout and exit code as dav_request; expect 201.
+  local kind="$1" url="$2" netrc="$3" dn="$4" out="$5" dnxml="" method body
+  if [[ -n "$dn" && "$dn" != "-" ]]; then
+    dnxml="<d:displayname>$(printf '%s' "$dn" | dav_xml_escape)</d:displayname>"
+  fi
+  if [[ "$kind" == calendar ]]; then
+    method="MKCALENDAR"
+    body='<?xml version="1.0" encoding="utf-8"?><c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:set><d:prop>'"$dnxml"'<c:supported-calendar-component-set><c:comp name="VEVENT"/><c:comp name="VTODO"/><c:comp name="VJOURNAL"/></c:supported-calendar-component-set></d:prop></d:set></c:mkcalendar>'
+  else
+    method="MKCOL"
+    body='<?xml version="1.0" encoding="utf-8"?><d:mkcol xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:set><d:prop><d:resourcetype><d:collection/><card:addressbook/></d:resourcetype>'"$dnxml"'</d:prop></d:set></d:mkcol>'
+  fi
+  printf '%s' "$body" | dav_request "$method" "$url" "$netrc" "$out" \
+    --header "Content-Type: application/xml; charset=utf-8" --data-binary @-
+}
+
+dav_set_displayname() {
+  # dav_set_displayname <url> <netrc> <displayname> <out-file> — PROPPATCH of
+  # the display name. Stdout and exit code as dav_request; expect 207.
+  local url="$1" netrc="$2" dn="$3" out="$4" body
+  body='<?xml version="1.0" encoding="utf-8"?><d:propertyupdate xmlns:d="DAV:"><d:set><d:prop><d:displayname>'"$(printf '%s' "$dn" | dav_xml_escape)"'</d:displayname></d:prop></d:set></d:propertyupdate>'
+  printf '%s' "$body" | dav_request PROPPATCH "$url" "$netrc" "$out" \
+    --header "Content-Type: application/xml; charset=utf-8" --data-binary @-
+}
+
+dav_error_text() {
+  # dav_error_text <body-file> — the human part of a sabre/dav error answer
+  # (<s:message>), at most 300 characters; nothing if there is none.
+  [[ -s "$1" ]] || return 0
+  # One line, newline-terminated: sed implementations disagree about an
+  # unterminated last line.
+  { tr '\r\n' '  ' < "$1"; echo; } \
+    | sed -n 's/.*message>\([^<]*\)<\/[^>]*message>.*/\1/p' \
+    | sed -e 's/&quot;/"/g' -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/&amp;/\&/g' \
+    | cut -c1-300
+}
+
+dav_md5_dir() {
+  # dav_md5_dir <dir> — "<md5>\t<name>" for every file in <dir> (dot files
+  # excluded), in one call of the md5 tool rather than one per object.
+  _dav_md5_tool || return 1
+  (
+    cd "$1" || exit 1
+    set -- *
+    [[ -e "$1" ]] || exit 0
+    case "$_DAV_MD5_TOOL" in
+      md5sum)  md5sum -- "$@" | awk '{ print $1 "\t" $2 }' ;;
+      md5)     md5 -r "$@" | awk '{ print $1 "\t" $2 }' ;;
+      openssl) openssl md5 -r "$@" | awk '{ n = $2; sub(/^\*/, "", n); print $1 "\t" n }' ;;
+    esac
+  )
+}
+
+dav_sync_plan() {
+  # dav_sync_plan <split-dir> <multistatus-file>
+  #
+  # What a sync has to do to make a collection hold exactly the split objects:
+  # <multistatus-file> is a Depth-1 PROPFIND (getetag) of the collection. One
+  # tab-separated line per object, sorted:
+  #
+  #   new      <name>
+  #   changed  <name>  <etag on the server>
+  #   same     <name>
+  #   delete   <name>  <etag on the server>
+  #
+  # <name> is the last segment of the object's URL as the server lists it
+  # (still percent-encoded, so it can be appended to the collection URL as it
+  # is). An object the server lists without an etag counts as changed, etag
+  # "-".
+  {
+    dav_md5_dir "$1" | awk '{ print "L\t" $0 }'
+    ms_responses "$2" | awk -F '\t' '$1 !~ /\/$/ { print "R\t" $1 "\t" $4 }'
+  } | awk -F '\t' '
+    $1 == "L" { here[$3] = $2; next }
+    $1 == "R" { n = $2; sub(/^.*\//, "", n); there[n] = $3; next }
+    END {
+      for (k in here) {
+        if (!(k in there)) print "new\t" k
+        else if (there[k] != here[k]) print "changed\t" k "\t" there[k]
+        else print "same\t" k
+      }
+      for (k in there) if (!(k in here)) print "delete\t" k "\t" there[k]
+    }
+  ' | LC_ALL=C sort
+}
+
+dav_sync_collection() {
+  # dav_sync_collection <label> <coll-url> <netrc> <kind> <export> <expect>
+  #                     <max-delete> <workdir>
+  #
+  # Makes the collection at <coll-url> (with trailing "/", it must exist) hold
+  # exactly the objects of <export>, a calendar or address book export as the
+  # export script stored it:
+  #
+  #   1. split it into <workdir>/split; <expect> is the object count the
+  #      manifest promises ("-" = unchecked) — a mismatch stops here;
+  #   2. list the collection (href + etag) and plan with dav_sync_plan;
+  #   3. more deletions than <max-delete> ("-" = no limit) stop here, before
+  #      anything was changed;
+  #   4. DELETE what is gone, PUT what is new (If-None-Match: *) or changed
+  #      (If-Match: <etag>);
+  #   5. count the collection again: it must hold as many objects as the split.
+  #
+  # With DAV_DRY_RUN=1 it stops after 3 and changes nothing; a collection that
+  # does not exist yet then counts as empty. <label> starts every log line
+  # ("Account 'x': calendar 'personal'"). A failed PUT is logged with the
+  # object's UID and the server's error text, and the sync carries on with the
+  # next object; a transport error or a refused login stops it at once.
+  #
+  # Prints "<objects> <new> <changed> <deleted> <same> <bytes-sent>
+  # <rewritten>" on stdout — <rewritten> counts PUTs the server answered
+  # without an ETag, i.e. it stored something other than what it was sent, so
+  # the next sync sends them again. Returns 0 in sync, 1 failed, 2 refused by
+  # <max-delete> (nothing changed).
+  local label="$1" url="$2" netrc="$3" kind="$4" export="$5" expect="$6" maxdel="$7" work="$8"
+  local split="$work/split" ms="$work/remote.xml" plan="$work/plan" body="$work/body" hdr="$work/headers"
+  local ctype n resp rc code action name etag uid msg have
+  local cond=()
+  local nnew=0 nchg=0 ndel=0 nsame=0 nfail=0 bytes=0 rewritten=0 sz
+
+  rm -rf "$split"
+  mkdir -p "$work" || { log ERROR "${label}: cannot create $work"; return 1; }
+  if [[ "$kind" == calendar ]]; then
+    ctype="text/calendar; charset=utf-8"
+    n="$(ics_split "$export" "$split" 2>/dev/null)" \
+      || { log ERROR "${label}: the export cannot be split — $(dav_bad_text "$(ics_stats "$export" | cut -d' ' -f1)")"; return 1; }
+  else
+    ctype="text/vcard; charset=utf-8"
+    if [[ -f "$export" && ! -s "$export" ]]; then
+      # An empty address book exports as an empty body.
+      mkdir -p "$split" || return 1; n=0
+    else
+      n="$(vcf_split "$export" "$split" 2>/dev/null)" \
+        || { log ERROR "${label}: the export cannot be split — $(dav_bad_text "$(vcf_stats "$export" | cut -d' ' -f1)")"; return 1; }
+    fi
+  fi
+  if [[ "$expect" != "-" && "$n" -ne "$expect" ]]; then
+    log ERROR "${label}: the export holds $n objects, its manifest says $expect — staging is inconsistent, nothing changed"
+    return 1
+  fi
+
+  rc=0
+  resp="$(dav_propfind "$url" "$netrc" 1 "$DAV_PROPFIND_ETAGS" "$ms")" || rc=$?
+  code="${resp%% *}"
+  if [[ "$rc" -ne 0 ]]; then
+    log ERROR "${label}: listing failed (curl exit $rc: $(curl_rc_text "$rc"))"; return 1
+  fi
+  if [[ "$code" == 404 && "${DAV_DRY_RUN:-0}" -eq 1 ]]; then
+    : > "$ms"
+  elif [[ "$code" != 207 ]]; then
+    log ERROR "${label}: listing answered HTTP $code ($(http_text "$code")), expected 207"; return 1
+  fi
+  dav_sync_plan "$split" "$ms" > "$plan" || { log ERROR "${label}: cannot compare with the server"; return 1; }
+  nnew="$(grep -c '^new	' "$plan")"
+  nchg="$(grep -c '^changed	' "$plan")"
+  ndel="$(grep -c '^delete	' "$plan")"
+  nsame="$(grep -c '^same	' "$plan")"
+
+  if [[ "$maxdel" != "-" && "$ndel" -gt "$maxdel" ]]; then
+    log ERROR "${label}: $ndel objects would be deleted, more than MAX_DELETE=$maxdel — nothing changed"
+    printf '%d %d %d %d %d %d %d\n' "$n" "$nnew" "$nchg" "$ndel" "$nsame" 0 0
+    return 2
+  fi
+  if [[ "${DAV_DRY_RUN:-0}" -eq 1 ]]; then
+    printf '%d %d %d %d %d %d %d\n' "$n" "$nnew" "$nchg" "$ndel" "$nsame" 0 0
+    return 0
+  fi
+
+  # Deletions first: an object a client created under another name with the
+  # same UID would otherwise make the PUT of its replacement fail (CalDAV
+  # refuses a second object with the same UID in a collection).
+  while IFS="$(printf '\t')" read -r action name etag; do
+    case "$action" in
+      delete) ;;
+      *) continue ;;
+    esac
+    cond=()
+    [[ "$etag" != "-" ]] && cond=(--header "If-Match: \"$etag\"")
+    rc=0
+    resp="$(DAV_LOG_REQUESTS=0 dav_request DELETE "$url$name" "$netrc" "$body" "${cond[@]+"${cond[@]}"}")" || rc=$?
+    code="${resp%% *}"
+    if [[ "$rc" -ne 0 ]]; then
+      log ERROR "${label}: DELETE $name failed (curl exit $rc: $(curl_rc_text "$rc")) — stopped"; return 1
+    fi
+    case "$code" in
+      200|204|404) ;;
+      401|403) log ERROR "${label}: DELETE $name answered HTTP $code ($(http_text "$code")) — stopped"; return 1 ;;
+      *) msg="$(dav_error_text "$body")"
+         log ERROR "${label}: object $name not deleted — HTTP $code ($(http_text "$code"))${msg:+: $msg}"
+         nfail=$((nfail + 1)) ;;
+    esac
+  done < "$plan"
+
+  while IFS="$(printf '\t')" read -r action name etag; do
+    case "$action" in
+      new)     cond=(--header "If-None-Match: *") ;;
+      changed) cond=(); [[ "$etag" != "-" ]] && cond=(--header "If-Match: \"$etag\"") ;;
+      *) continue ;;
+    esac
+    rc=0
+    resp="$(DAV_LOG_REQUESTS=0 dav_request PUT "$url$name" "$netrc" "$body" \
+              --header "Content-Type: $ctype" "${cond[@]+"${cond[@]}"}" \
+              --dump-header "$hdr" --data-binary "@$split/$name")" || rc=$?
+    code="${resp%% *}"
+    if [[ "$rc" -ne 0 ]]; then
+      log ERROR "${label}: PUT $name failed (curl exit $rc: $(curl_rc_text "$rc")) — stopped"; return 1
+    fi
+    case "$code" in
+      201|204)
+        sz="$(wc -c < "$split/$name" | tr -d ' ')"
+        bytes=$((bytes + sz))
+        grep -qi '^etag:' "$hdr" || rewritten=$((rewritten + 1))
+        ;;
+      401|403)
+        log ERROR "${label}: PUT $name answered HTTP $code ($(http_text "$code")) — stopped"; return 1 ;;
+      *)
+        uid="$(dav_object_uid "$split/$name")"
+        msg="$(dav_error_text "$body")"
+        log ERROR "${label}: object UID '${uid:-?}' not stored — HTTP $code ($(http_text "$code"))${msg:+: $msg}"
+        nfail=$((nfail + 1)) ;;
+    esac
+  done < "$plan"
+
+  # Count again: the proof that the collection holds what the export holds.
+  rc=0
+  resp="$(dav_propfind "$url" "$netrc" 1 "$DAV_PROPFIND_ETAGS" "$ms")" || rc=$?
+  code="${resp%% *}"
+  if [[ "$rc" -ne 0 || "$code" != 207 ]]; then
+    log ERROR "${label}: counting afterwards failed (curl exit $rc, HTTP $code)"; nfail=$((nfail + 1))
+  else
+    have="$(ms_member_count "$ms")"
+    if [[ "$have" -ne "$n" ]]; then
+      log ERROR "${label}: Baïkal holds $have objects afterwards, the export $n"
+      nfail=$((nfail + 1))
+    fi
+  fi
+
+  printf '%d %d %d %d %d %d %d\n' "$n" "$nnew" "$nchg" "$ndel" "$nsame" "$bytes" "$rewritten"
+  [[ "$nfail" -eq 0 ]]
 }
 
 # ---------------------------------------------------------------------------

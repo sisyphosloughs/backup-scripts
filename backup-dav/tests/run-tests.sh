@@ -146,6 +146,30 @@ private_case() {
   if file_private "$WORK"; then echo "dir private"; else echo "dir refused"; fi
 }
 
+plan_case() {
+  # The sync plan of simple.ics against a recorded listing of a Baïkal
+  # collection that holds it, after a client changed one object, deleted
+  # another and added one under its own name: same, changed, new, delete.
+  local dir="$WORK/plan.$RANDOM"
+  ics_split "$FIX/simple.ics" "$dir" > /dev/null || return 1
+  dav_sync_plan "$dir" "$FIX/propfind-standby.xml"
+}
+
+object_uid_case() {
+  # The UID of each split object: the VEVENT's, not the VALARM's; the card's.
+  local f dir="$WORK/uid.$RANDOM"
+  ics_split "$FIX/valarm-uid.ics" "$dir/ics" > /dev/null || return 1
+  vcf_split "$FIX/contacts.vcf" "$dir/vcf" > /dev/null || return 1
+  for f in "$dir"/ics/* "$dir"/vcf/*; do
+    printf '%s\t%s\n' "${f##*/}" "$(dav_object_uid "$f")"
+  done
+}
+
+xml_escape_case() {
+  printf '%s' 'Familie & Freunde <privat> "x"' | dav_xml_escape
+  echo
+}
+
 manifest_case() {
   manifest_header
   manifest_row calendar personal "Name	with tab" 3 3 2 1 0 999
@@ -184,6 +208,12 @@ check "url_parts" url_parts
 check "netrc_has_machine" netrc_case
 check "file_private" private_case
 check "manifest_row" manifest_case
+
+check "dav_sync_plan.standby" plan_case
+check "dav_object_uid" object_uid_case
+check "dav_error_text.baikal-415" dav_error_text "$FIX/error-baikal-415.xml"
+check "dav_error_text.empty" dav_error_text "$FIX/empty.vcf"
+check "dav_xml_escape" xml_escape_case
 
 check "manifest_compare.within" manifest_compare "$FIX/manifest-old.tsv" "$FIX/manifest-within.tsv" 20
 check "manifest_compare.over" manifest_compare "$FIX/manifest-old.tsv" "$FIX/manifest-over.tsv" 20
