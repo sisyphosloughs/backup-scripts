@@ -279,6 +279,11 @@ needs `python3` or `jq`, even though ikaria has both.
 | `uid_name <uid>` | a stable, path-safe file name for a UID. Hash it rather than escape it, because UIDs contain `/`, `@` and the like. The md5/sha tool differs between DSM, busybox and macOS, so this needs a small helper that tries `md5sum` and then `md5 -q` |
 | `manifest_read` / `manifest_compare` | trend guard |
 | `curl_rc_text <rc>` | curl exit code in words, like `rclone_rc_text` |
+| `dav_account_reset <name>` | the per-account variables and their defaults, shared by both scripts |
+| `dav_mkcollection` / `dav_set_displayname` | create a calendar or address book; follow a renamed display name |
+| `dav_sync_plan <split-dir> <multistatus>` | new / changed / same / delete per object, from md5 against etag |
+| `dav_sync_collection` | one collection of the standby: split, plan, `MAX_DELETE`, DELETE, PUT, count |
+| `dav_object_uid` / `dav_error_text` | the UID of a split object and sabre's error message, for a log line |
 
 Splitting happens when the standby imports, not in staging. Staging keeps the
 server's export unchanged; that keeps the backup a plain copy of what the
@@ -302,25 +307,39 @@ For each account with `STANDBY=true`:
    If one of these fails, the account fails and nothing is written.
 2. **Collections.**
    - A collection in `manifest.tsv` that is missing in Baïkal is created with
-     `MKCALENDAR` or an extended `MKCOL` (`resourcetype` addressbook), with
-     its display name.
+     `MKCALENDAR` (accepting `VEVENT`, `VTODO` and `VJOURNAL`) or an extended
+     `MKCOL` (`resourcetype` addressbook), with its display name. A display
+     name renamed in Nextcloud is followed with a `PROPPATCH`.
    - A collection in Baïkal that is no longer in the manifest is **never
-     deleted automatically**, only reported. Deleting a whole calendar is
-     rare, and done by mistake it is expensive.
-3. **Objects.** Split the export (`ics_split`/`vcf_split`) into a temp dir,
-   then `PROPFIND` the Baïkal collection for href and etag.
-   - New or changed objects get a `PUT`.
-   - Objects that are gone from the export get a `DELETE`.
-   - "Changed" means the etag differs from the md5 of the object. sabre's PDO
-     backend uses md5 of the stored data as etag. Verify that Baïkal keeps
-     the data byte for byte; if not, always `PUT` and accept the extra
-     traffic.
+     deleted automatically**, only reported (a warning every night). Deleting
+     a whole calendar is rare, and done by mistake it is expensive.
+3. **Objects** (`dav_sync_collection`). Split the export (`ics_split`/
+   `vcf_split`) into a temp dir; the number of objects must equal `objects`
+   in the manifest, or the collection fails before anything is written. Then
+   `PROPFIND` the Baïkal collection for href and etag and plan
+   (`dav_sync_plan`).
+   - New objects get a `PUT` with `If-None-Match: *`, changed ones with
+     `If-Match: <etag>`.
+   - Objects that are gone from the export get a `DELETE`, **before** the
+     PUTs: an object a client created under another name with the same UID
+     would otherwise make the PUT of its replacement fail.
+   - "Changed" means the etag differs from the md5 of the object. Verified
+     with Baïkal 0.13.0: it stores the data byte for byte and its etag is the
+     md5 of what it stored. A PUT answered without `ETag` means Baïkal
+     changed the object on storing; such objects are counted and warned
+     about, because they are sent again every night.
    - The deletions are guarded by `MAX_DELETE` per collection: above that,
-     the collection fails before anything is deleted.
+     the collection fails before anything is changed.
+   - A transport error or a refused login stops the collection at once; a
+     single refused object does not.
 4. **Check.** Afterwards the object count per Baïkal collection must equal
-   `objects` from the manifest. Every `PUT` that does not get 201 or 204 is
-   logged with its UID, its collection and the server's error text (decided,
-   13).
+   the export's. Every `PUT` that does not get 201 or 204 is logged with its
+   UID, its collection and the server's error text (decided, 13).
+
+`--dry-run` lists what would be created, sent and deleted, and changes
+nothing. Before any account, the run checks that Baïkal answers under
+`BAIKAL_URL` and asks for credentials (401 without them); otherwise no
+account is touched.
 
 ### 7.2 `--restore-test` (monthly, DSM Task Scheduler)
 
@@ -576,6 +595,8 @@ output, in line with the verification standard in `CLAUDE.md`.
   | `contacts.vcf` | vCard 3.0 and 4.0 mixed, a folded base64 PHOTO |
   | `propfind-nextcloud.xml` | recorded multistatus from Nextcloud (anonymised), including subscription, birthday calendar, Deck, shared-in, trashbin |
   | `propfind-baikal.xml` | recorded multistatus from Baïkal 0.13.0 |
+  | `propfind-standby.xml` | recorded from Baïkal: `simple.ics` synced, then one object changed, one deleted, one added under a foreign name — the sync plan |
+  | `error-baikal-415.xml` | Baïkal's error answer to an invalid vCard |
   | `manifest-*.tsv` | trend guard: within limit, over limit, collection gone |
 
 - What it covers: `ics_unfold`, `ics_stats`, `vcf_stats`, `ics_split` (one
