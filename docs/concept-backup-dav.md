@@ -48,7 +48,7 @@ CalDAV/CardDAV  ──── ?export, per account ────▶  backup-dav.sh
                                                            │                         └▶ backup-restic (existing; staging is already a BACKUP_PATH)
                                                            ▼
                                                  backup-dav-standby.sh    (consumer, nightly)
-                                                     └▶ Baïkal 0.13.0 at /volume1/baikal/, port 9976, LAN only
+                                                     └▶ Baïkal 0.13.0 at /volume1/docker/baikal/, port 9976, LAN only
                                                         principal per account = warm standby
                                                  backup-dav-standby.sh --restore-test   (monthly)
                                                      └▶ restic restore → principal "restore-test" → compare
@@ -83,7 +83,7 @@ backup-dav/
 
 The module directory belongs on `main` and has no host-specific content. The
 paths on ikaria (`/volume1/...`, LAN IP, port) appear only as examples in the
-templates and for real in the live `*.conf` files and `compose.yml`.
+templates and for real in the live `*.conf` files and `docker-compose.yml`.
 
 ### Wording knobs and interface names
 
@@ -124,7 +124,7 @@ BAIKAL_URL="http://192.168.223.2:9976/dav.php"
 BAIKAL_AUTH="digest"            # Baïkal's default; see 8.1
 MARKER_MAX_AGE_HOURS=26         # staging marker must be fresher than this
 MAX_DELETE=50                   # per collection and run
-STANDBY_FREEZE_FILE="/volume1/baikal/FROZEN"   # see 9
+STANDBY_FREEZE_FILE="/volume1/docker/baikal/data/FROZEN"   # see 9
 
 # Restore test
 RESTIC_BIN="/usr/local/bin/restic"
@@ -353,22 +353,25 @@ broken".
 
 ## 8. Baïkal on ikaria
 
-### 8.1 Deployment under `/volume1/baikal/`
+### 8.1 Deployment under `/volume1/docker/baikal/`
 
-- **Folder.** Create `baikal` as a **DSM shared folder**, not just a `mkdir`,
-  so it gets DSM permissions and shows up in DSM's own tools.
-  `/volume1/baikal` does not exist yet.
+- **Folder.** A stack directory next to the other containers in
+  `/volume1/docker`, not a shared folder of its own (decided 2026-11-20).
+  `/volume1/docker` is mirrored by mutagen from `~/Git/docker-nas` on the Mac
+  and versioned there, so everything Baïkal writes lies below `data/`, which
+  both ignore lists already exclude (`*/data`, `**/data/`).
 - **Layout.**
   ```
-  /volume1/baikal/
-    compose.yml          live copy of backup-dav/baikal/compose.example.yml
-    Dockerfile           copy of backup-dav/baikal/Dockerfile (or build: pointing at the module)
-    config/              → /var/www/baikal/config    (baikal.yaml)
-    Specific/            → /var/www/baikal/Specific  (db/db.sqlite)
-    FROZEN               only in an emergency (see 9)
+  /volume1/docker/baikal/
+    docker-compose.yml   from backup-dav/baikal/compose.example.yml; versioned in docker-nas
+    data/                root, 0700; neither synced nor versioned
+      config/            → /var/www/baikal/config    (baikal.yaml)
+      Specific/          → /var/www/baikal/Specific  (db/db.sqlite)
+      FROZEN             only in an emergency (see 9)
   ```
-  The volume paths follow the layout of the Baïkal release zip; verify them
-  for 0.13.0.
+  The compose file builds from the module directory (`build:`), so there is
+  no copy of the Dockerfile. The volume paths follow the layout of the
+  0.13.0 release zip (verified).
 
 #### Image: our own build of Baïkal 0.13.0
 
@@ -439,8 +442,9 @@ IP, so they keep working even when the Fritz!Box DNS does not.
 ### 8.2 Backing up Baïkal itself
 
 In normal operation the standby is a derived copy, but in an emergency it
-becomes the primary. So `/volume1/baikal` gets its own `backup-restic`
-instance (`BACKUP_PATH="/volume1/baikal"`).
+becomes the primary. The existing `backup-restic` instance `docker`
+(`BACKUP_PATH="/volume1/docker"`) already covers `baikal/data/`; its
+`EXCLUDES` must stay free of it. No instance of its own is needed.
 
 SQLite consistency: the nightly writes come from the standby sync, which runs
 before restic (11), so the file is at rest during the snapshot. In an
@@ -484,7 +488,7 @@ sudo /usr/local/bin/docker port baikal     # expect: 80/tcp -> 192.168.223.2:997
 ```
 
 If it shows `0.0.0.0:9976` or `:::9976`, the IP is missing from the port
-mapping in `compose.yml`.
+mapping in `docker-compose.yml`.
 
 **c) Reachable from the LAN, under all three names?** From the Mac:
 
@@ -519,11 +523,11 @@ no QuickConnect or DDNS entry of DSM points at Baïkal.
 What makes a warm standby dangerous is the nightly sync **overwriting** what
 clients wrote into Baïkal during an emergency. So:
 
-- **Freeze.** `touch /volume1/baikal/FROZEN` before the first client is
-  pointed at Baïkal. While the file exists, the standby sync refuses to do
-  anything and reports `standby frozen since <mtime>` as an **error**. That
-  is deliberate: the run is red every night until the emergency is closed, so
-  it cannot be forgotten.
+- **Freeze.** `touch /volume1/docker/baikal/data/FROZEN` before the first
+  client is pointed at Baïkal. While the file exists, the standby sync
+  refuses to do anything and reports `standby frozen since <mtime>` as an
+  **error**. That is deliberate: the run is red every night until the
+  emergency is closed, so it cannot be forgotten.
 - **Automatic protection.** If Nextcloud is unreachable, the export fails, the
   staging marker ages, and the standby stays untouched after
   `MARKER_MAX_AGE_HOURS` at the latest (7.1, step 1). Freezing is still
@@ -667,8 +671,8 @@ does.
   - Root `README.md`.
   - `.gitignore` and `mutagen.example.yml` (secrets).
   - `backup-wrapper.example.sh`.
-  - A restic instance for `/volume1/baikal` on ikaria (live configuration
-    only).
+  - No restic instance of its own: `/volume1/docker` is backed up already
+    (8.2).
 - **Rejected alternatives.**
   - Per-object download with `REPORT calendar-query` would keep the
     server's resource names and etags, but it means unescaping calendar data
@@ -696,6 +700,9 @@ does.
 - Log: the UIDs of failed objects may appear in the `0644` log.
 - Host names: `ikaria`, `ikaria.fritz.box` and `192.168.223.2`, all three
   without restriction. Clients use `ikaria.fritz.box`, the scripts the IP.
+- Location (2026-11-20): `/volume1/docker/baikal/` next to the other stacks,
+  data below `data/`; no shared folder of its own, no restic instance of its
+  own (8.1, 8.2).
 
 **Open:** nothing at the moment. The "verify" points in the text are checked
 during implementation.
@@ -709,12 +716,11 @@ during implementation.
    `server_count` by hand with the web UI.
 3. Baïkal on ikaria:
    1. build the image (`Dockerfile`, checksum);
-   2. create the shared folder; port checks a);
+   2. create the stack directory; port checks a);
    3. start, setup wizard, principals; port checks b)–e);
    4. `tests/integration.sh`.
 4. `backup-dav-standby.sh` sync, then `--restore-test`.
-5. Documentation, `CLAUDE.md`, wrapper template, restic instance for
-   `/volume1/baikal`.
+5. Documentation, `CLAUDE.md`, wrapper template.
 
 Every step is one commit, and each script change is verified by comparing logs
 on the host as `CLAUDE.md` describes.
