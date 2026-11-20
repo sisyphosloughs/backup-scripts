@@ -236,6 +236,36 @@ rebuild, and open the admin UI once: Baïkal may ask to upgrade its database.
 If ckulka publishes a 0.13 image later (#334), switching back to an external
 image is an option.
 
+## Connecting a client
+
+The user name is the **principal's name** (`bbruecker`), never its e-mail
+address. With Digest authentication the user name is part of the hash, so
+`bbruecker@baikal.invalid` fails with "account name/password could not be
+verified" even when the password is right. The password is the principal's
+Baïkal password from the password manager, not the Nextcloud one.
+
+macOS Calendar (Settings → Accounts → + → Other CalDAV account), verified
+2026-11-20:
+
+| Field | Value |
+|---|---|
+| Account type | Advanced (*Erweitert*) |
+| User name | `bbruecker` |
+| Password | the principal's Baïkal password |
+| Server address | `ikaria.fritz.box` |
+| Server path | `/dav.php/principals/bbruecker/` |
+| Port | `9976`, SSL off |
+
+macOS warns about the missing TLS. Contacts should take the same values as a
+CardDAV account (not tried yet). Other clients (iOS, DAVx⁵, Thunderbird) need the base URL
+`http://ikaria.fritz.box:9976/dav.php` and the same user name;
+`/.well-known/caldav` and `/.well-known/carddav` redirect there.
+
+**Looking is safe, writing is not**, unless the standby is frozen. The nightly
+sync deletes every object that is not in the Nextcloud export and overwrites
+changed ones, so anything a client creates or edits in Baïkal is gone the
+next morning. To try a client outside an emergency, only read.
+
 ## Emergency use and failback
 
 The danger of a warm standby is the nightly sync **overwriting** what clients
@@ -245,9 +275,8 @@ wrote into Baïkal during an emergency.
    before the first client is pointed at Baïkal. While the file exists the
    standby sync does nothing and reports `standby frozen since <time>` as an
    **error**, every night, until the emergency is closed. That is deliberate.
-2. **Point the clients** at `http://ikaria.fritz.box:9976/dav.php` with the
-   principal's Baïkal user name and password (macOS and iOS warn about the
-   missing TLS). Scheduling stays off while the principal has its `.invalid`
+2. **Point the clients** at Baïkal, as described in "Connecting a client"
+   below. Scheduling stays off while the principal has its `.invalid`
    address — invitations from clients are not sent.
 3. **Consistent backups while clients write:** before a restic run,
    `sudo /usr/local/bin/docker exec -u www-data baikal sqlite3 /var/www/baikal/Specific/db/db.sqlite ".backup /var/www/baikal/Specific/db/db-backup.sqlite"`.
