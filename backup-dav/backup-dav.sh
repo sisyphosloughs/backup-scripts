@@ -259,25 +259,12 @@ prepare_staging_dir() {
   return 0
 }
 
-# shellcheck disable=SC2034  # ENABLED is read by lib/runlib's loader; the rest
-# by the account configurations sourced on top of them and by the worker.
 reset_account_vars() {
   # Every per-account variable, set to its default. Called by runlib before
   # each instances/<account>.conf is sourced (and again inside the subshell),
-  # so a value from one file never leaks into the next. DAV_USER defaults to
-  # the file name, so the usual configuration does not repeat it.
-  local name="${1:-}"
-  DAV_URL=""
-  DAV_USER="$name"
-  NETRC_FILE=""
-  ENABLED="true"
-  INCLUDE_SHARED="false"
-  EXCLUDE_COLLECTIONS=()
-  MAX_SHRINK_PERCENT="$DEFAULT_MAX_SHRINK_PERCENT"
-  ACCEPT_SHRINK="false"
-  # Read by backup-dav-standby.sh, not here; reset so they cannot leak either.
-  STANDBY="true"
-  STANDBY_USER=""
+  # so a value from one file never leaks into the next. The list lives in the
+  # library, shared with backup-dav-standby.sh.
+  dav_account_reset "$@"
 }
 
 validate_account() {

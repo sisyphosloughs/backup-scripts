@@ -82,6 +82,29 @@ netrc_has_machine() {
   ' "$1" 2>/dev/null
 }
 
+# shellcheck disable=SC2034  # read by runlib's loader, the scripts and the
+# account configurations sourced on top of these defaults.
+dav_account_reset() {
+  # dav_account_reset <name> — every variable of an instances/<account>.conf,
+  # set to its default. Both scripts call it before each file is sourced (and
+  # again inside their worker's subshell), so a value from one account never
+  # leaks into the next — and because it lives here, the export and the
+  # standby cannot disagree about what an account's settings are. DAV_USER
+  # defaults to the file name; MAX_SHRINK_PERCENT to the global value, which
+  # the scripts keep in DEFAULT_MAX_SHRINK_PERCENT.
+  local name="${1:-}"
+  DAV_URL=""
+  DAV_USER="$name"
+  NETRC_FILE=""
+  ENABLED="true"
+  INCLUDE_SHARED="false"
+  EXCLUDE_COLLECTIONS=()
+  MAX_SHRINK_PERCENT="${DEFAULT_MAX_SHRINK_PERCENT:-20}"
+  ACCEPT_SHRINK="false"
+  STANDBY="true"
+  STANDBY_USER=""
+}
+
 file_private() {
   # file_private <path> — 0 if <path> is a regular file that neither group nor
   # others can read, write or execute: the same strictness ssh applies to a
