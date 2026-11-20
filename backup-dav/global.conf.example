@@ -101,7 +101,9 @@ MAX_DELETE=50
 
 # While this file exists the standby sync refuses to run (and reports that as
 # an error every night): clients are working on Baïkal. See baikal/README.md.
-STANDBY_FREEZE_FILE="/volume1/baikal/FROZEN"
+# It lies in the stack's data/ directory, which is neither synced nor
+# versioned.
+STANDBY_FREEZE_FILE="/volume1/docker/baikal/data/FROZEN"
 
 # Restore test (backup-dav-standby.sh --restore-test): restores the staging
 # from the restic repository backup-restic writes it into. Neither the
@@ -111,6 +113,12 @@ RESTIC_REPOSITORY=""
 RESTIC_PASSWORD_FILE=""
 RESTORE_TEST_PRINCIPAL="restore-test"
 SELFTEST_PRINCIPAL="selftest"
+
+# One netrc per test principal (0600, one "machine <host of BAIKAL_URL>" line
+# each). Not in an account's netrc: curl picks the line by host alone, and
+# every principal lives on the same host.
+RESTORE_TEST_NETRC="/volume1/scripts/backup-scripts/backup-dav/secrets/restore-test.netrc"
+SELFTEST_NETRC="/volume1/scripts/backup-scripts/backup-dav/secrets/selftest.netrc"
 
 # ---------------------------------------------------------------------------
 # Logging and notification

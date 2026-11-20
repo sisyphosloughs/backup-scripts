@@ -1,0 +1,21 @@
+# The only site of the container. Baïkal's html/ is the document root;
+# config/ (baikal.yaml with the admin password hash) and Specific/ (the
+# database with every account's data) lie outside it and are never served.
+ServerName baikal
+
+<VirtualHost *:80>
+    DocumentRoot /var/www/baikal/html
+
+    <Directory /var/www/baikal/html>
+        Options -Indexes
+        # Baïkal's .htaccess: Authorization header for PHP, the
+        # /.well-known/caldav and /.well-known/carddav redirects, no caching.
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # The base image links both to the container's stdout/stderr
+    # ("docker logs baikal").
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>

@@ -1,0 +1,51 @@
+# compose.example.yml — Baïkal, the warm standby of backup-dav
+#
+# Copy to <stack dir>/docker-compose.yml on the host and adjust the paths and
+# the address; on ikaria that is /volume1/docker/baikal/, next to the other
+# stacks. This template has the ikaria values as examples. Setup, port checks
+# and emergency use: README.md next to this file.
+#
+#   cd /volume1/docker/baikal
+#   sudo /usr/local/bin/docker compose build --pull
+#   sudo /usr/local/bin/docker compose up -d
+name: baikal
+
+services:
+  baikal:
+    # Built from the versioned Dockerfile in the module, not from a copy of it,
+    # so the host never runs a Dockerfile that differs from the repository.
+    build: /volume1/scripts/backup-scripts/backup-dav/baikal
+    # Keep the tag in step with BAIKAL_VERSION in the Dockerfile.
+    image: local/baikal:0.13.0-php8.4
+    # The port checks and the README address the container by this name.
+    container_name: baikal
+    restart: unless-stopped
+
+    # LAN only: bound to the host's LAN address, never 0.0.0.0. That also keeps
+    # it off 127.0.0.1 (port check d). Plain HTTP, Digest auth — no TLS by
+    # decision.
+    ports:
+      - "192.168.223.2:9976:80"
+
+    # Under data/: the stack directory itself is versioned and synced (on
+    # ikaria: the docker-nas repository, mutagen), and data/ is excluded from
+    # both. It holds every account's appointments and contacts.
+    volumes:
+      - /volume1/docker/baikal/data/config:/var/www/baikal/config
+      - /volume1/docker/baikal/data/Specific:/var/www/baikal/Specific
+
+    environment:
+      TZ: Europe/Berlin
+
+    labels:
+      # A local image has no registry to pull from: without this, Watchtower
+      # lists it as failed every night. Updates are the monthly rebuild.
+      com.centurylinklabs.watchtower.enable: "false"
+
+    # Healthy once the setup wizard is done: dav.php then asks for credentials.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/dav.php | grep -qx 401"]
+      interval: 5m
+      timeout: 10s
+      start_period: 30s
+      retries: 3
