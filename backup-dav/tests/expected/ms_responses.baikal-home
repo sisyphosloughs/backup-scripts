@@ -1,0 +1,6 @@
+/dav.php/calendars/alice/	collection	-	-	-	-
+/dav.php/calendars/alice/personal/	collection,calendar,shared-owner	Persönlich & Co	-	http://sabre.io/ns/sync/15	VEVENT,VTODO
+/dav.php/calendars/alice/recorded/	collection,calendar,shared-owner	-	-	http://sabre.io/ns/sync/3	VEVENT,VTODO
+/dav.php/calendars/alice/inbox/	collection,schedule-inbox	-	-	-	-
+/dav.php/calendars/alice/outbox/	collection,schedule-outbox	-	-	-	-
+rc=0

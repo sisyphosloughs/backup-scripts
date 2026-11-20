@@ -170,7 +170,7 @@ done
 check "ics_split.truncated" split_case ics truncated.ics
 check "vcf_split.contacts" split_case vcf contacts.vcf
 
-for f in nextcloud nextcloud-addressbooks baikal prefixes; do
+for f in nextcloud nextcloud-addressbooks baikal baikal-home prefixes; do
   check "ms_responses.$f" ms_responses "$FIX/propfind-$f.xml"
 done
 check "ms_member_count.baikal" ms_member_count "$FIX/propfind-baikal.xml"
