@@ -32,6 +32,7 @@ live in `global.conf`.
 <location>/
 ├── backup-restic.sh             # the script (identical on all hosts)
 ├── backup-restic-wrapper.sh     # optional interactive front-end for manual runs (tmux + rclone-config password prompt)
+├── repair-repo.sh               # manual check / repair of one repository (see below)
 ├── global.conf                  # host-specific global config (from global.conf.example)
 ├── instances/                   # one *.conf per backed-up object
 │   ├── instances.conf.example   # template for an instance
@@ -348,6 +349,97 @@ sudo ./backup-restic-wrapper.sh
 > an encrypted `rclone.conf` is either used only for these manual runs, or
 > `RCLONE_CONFIG_PASS` must be supplied to cron by other means.
 
+## Checking and repairing a repository (`repair-repo.sh`)
+
+`repair-repo.sh` checks one repository and repairs it if needed. It is meant for
+**manual runs as root** after `backup-restic.sh` has reported a damaged
+repository. The typical case is a prune that aborts like this:
+
+```
+pack a4da9487: calculated size 17345752 does not match real size 196608
+Fatal: pack size does not match calculated size from index
+```
+
+In that case a pack file in the backend is shorter than the index says it should
+be. The usual cause is an upload that was cut off. The backup that writes new
+data can still succeed while forget/prune fails on every run.
+
+It reads the same `global.conf` and `repos.conf` as `backup-restic.sh` and opens
+the repository with the same options: `RESTIC_BIN`, `RCLONE_BIN`,
+`RCLONE_CONFIG_FILE`, `RESTIC_PASSWORD_FILE`, and the same `rclone.args` default.
+The repository is therefore reached exactly as the nightly run reaches it.
+
+```bash
+./repair-repo.sh <repo>                  # guided repair, asks before every change
+./repair-repo.sh <repo> <step> [arg]     # run a single step
+./repair-repo.sh --help
+```
+
+`<repo>` is a name from `repos.conf` (e.g. `pcloud`) or a repository URL.
+
+### Steps
+
+| Step | restic command | Changes the repo? |
+|---|---|---|
+| `check` | `check` (structure only) | no |
+| `verify [subset]` | `check --read-data-subset=<subset>`, default `5%` | no |
+| `unlock` | `unlock` (stale locks only) | locks only |
+| `repair-index` | `repair index`: rebuilds the index from the packs that actually exist | yes |
+| `backup` | runs `backup-restic.sh` once | yes (new snapshot) |
+| `repair-snapshots` | `repair snapshots --forget`: removes files whose data is gone from the snapshots | yes |
+| `prune` | `prune` | yes |
+
+Both `verify` forms also accept restic's other subset notations, e.g. `1/10` or
+`2G`. A plain `check` only reads the index and the metadata. It does **not**
+find packs that were truncated or are corrupt but are not involved in a prune.
+Only `verify` actually downloads pack data and finds those.
+
+### Guided sequence
+
+Without a step, the script works through the sequence that repairs a damaged
+index:
+
+1. `unlock` and `check`. If the check is clean, it only offers a `verify 5%`
+   and stops.
+2. After asking: `repair index`. Data from damaged packs now counts as
+   **missing**.
+3. After asking: one run of `backup-restic.sh`. restic uploads every missing
+   blob again whose source file still exists on disk. For a recent damage this
+   usually closes every gap.
+4. `check` again. Only if snapshots still refer to data that exists nowhere
+   anymore: after asking, `repair snapshots --forget`. That affects files that
+   have since been deleted locally. They disappear from the old snapshots, and
+   the snapshots themselves stay.
+5. After asking: `prune`, then optionally `verify 5%`.
+
+Any answer other than `y`/`j` stops the sequence at that point. Nothing that was
+not confirmed is changed.
+
+### Locking, log, progress
+
+- **Lock:** the script holds the same lock file as `backup-restic.sh`
+  (`logs/.lock`, via `flock`), so it never runs alongside the nightly backup.
+  For step 3 it releases the lock for the duration of the backup, because
+  otherwise the backup would block itself.
+- **Log:** all output goes to the terminal and also to
+  `logs/repair-<timestamp>.log` (`0644`). The prefix `repair` is deliberate:
+  log rotation only deletes `backup-*` files, so repair logs are kept until
+  they are removed by hand.
+- **Progress:** restic draws its progress bar only when its output goes
+  straight to a terminal. Here it goes through `tee`, so the script sets
+  `RESTIC_PROGRESS_FPS`. With that, restic prints a plain line such as
+  `[12:30] 41.67%  830 / 1992 packs` every `PROGRESS_INTERVAL` seconds. This
+  is the same setting from `global.conf` as for the backup, default 30;
+  `0` turns the lines off. A `RESTIC_PROGRESS_FPS` already set in the
+  environment takes precedence. That matters for long runs: a `verify 5%` on
+  a repository of 260 GB downloads about 13 GB.
+- **Do not edit the script while it is running.** bash reads a script piece by
+  piece as it runs, and on a host synced by mutagen a change arrives within
+  seconds.
+
+The script does not use runlib. It sends no Telegram notifications and writes no
+completion marker. It is a maintenance tool, not a pipeline stage.
+
 ## Dry run (`DRY_RUN`)
 
 Set `DRY_RUN=true` in `global.conf` to do a trial run without writing anything.
@@ -420,7 +512,9 @@ a Telegram warning.
 
 One file `logs/backup-<timestamp>.log` per run. Output also goes to stdout at
 the same time. Files older than `LOG_RETENTION_DAYS` (default 64) days are
-deleted at the start of each run — no logrotate needed. Log files are created
+deleted at the start of each run — no logrotate needed. Logs of
+[`repair-repo.sh`](#checking-and-repairing-a-repository-repair-reposh)
+(`repair-*.log`) are not rotated. Log files are created
 world-readable (`0644`) so the normal user can read/sync them even though the
 script runs as root; they contain paths and snapshot IDs but no secrets.
 
@@ -518,6 +612,8 @@ EXCLUDES=(
 ## Not included in the script (manual)
 
 - Repository initialisation (`restic init`)
+- Repository check and repair — not part of the nightly run, see
+  [`repair-repo.sh`](#checking-and-repairing-a-repository-repair-reposh)
 - rclone configuration (`rclone config`) — only for `rclone:` targets
 - restic updates (`restic self-update`)
 - Cron setup
